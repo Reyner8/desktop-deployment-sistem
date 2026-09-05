@@ -139,7 +139,11 @@ export function NewDeploymentPage() {
                   {devices?.data?.map((device) => (
                     <TableRow key={device.id} className="cursor-pointer" onClick={() => toggleDevice(device.id)}>
                       <TableCell>
-                        <Checkbox checked={selectedDeviceIds.has(device.id)} onCheckedChange={() => toggleDevice(device.id)} />
+                        <Checkbox
+                          checked={selectedDeviceIds.has(device.id)}
+                          onCheckedChange={() => toggleDevice(device.id)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
                       </TableCell>
                       <TableCell className="font-medium">{device.hostname}</TableCell>
                       <TableCell>{device.applicationVersion || '-'}</TableCell>

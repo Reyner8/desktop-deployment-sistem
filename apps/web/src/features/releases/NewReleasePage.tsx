@@ -48,7 +48,8 @@ export function NewReleasePage() {
       const { data } = await api.post(`/releases/${releaseId}/artifact`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      setFileInfo(data);
+      const artifact = data.data;
+      setFileInfo({ name: artifact.fileName, size: Number(artifact.size), sha256: artifact.sha256 });
       setStep(3);
       toast({ title: 'File uploaded successfully', variant: 'success' });
     } catch {
@@ -61,7 +62,7 @@ export function NewReleasePage() {
   const handleCreate = async (values: ReleaseForm) => {
     try {
       const { data } = await api.post('/releases', values);
-      setReleaseId(data.id);
+      setReleaseId(data.data.id);
       setStep(2);
       toast({ title: 'Release created', variant: 'success' });
     } catch {

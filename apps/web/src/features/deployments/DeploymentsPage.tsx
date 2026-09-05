@@ -8,7 +8,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Eye, Plus, Rocket } from 'lucide-react';
 
-const statusOptions = ['ALL', 'PENDING', 'IN_PROGRESS', 'SUCCESS', 'FAILED', 'CANCELLED'];
+const statusOptions = ['ALL', 'PENDING', 'ASSIGNED', 'DOWNLOADING', 'VERIFYING', 'INSTALLING', 'STARTING', 'SUCCESS', 'FAILED', 'CANCELLED'];
 
 export function DeploymentsPage() {
   const navigate = useNavigate();

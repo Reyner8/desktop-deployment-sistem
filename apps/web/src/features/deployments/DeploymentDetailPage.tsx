@@ -12,8 +12,15 @@ const eventIcons: Record<string, React.ElementType> = {
   SUCCESS: CheckCircle,
   FAILED: XCircle,
   PENDING: Clock,
-  IN_PROGRESS: RefreshCw,
+  ASSIGNED: Clock,
+  DOWNLOADING: RefreshCw,
+  VERIFYING: RefreshCw,
+  INSTALLING: RefreshCw,
+  STARTING: RefreshCw,
+  CANCELLED: XCircle,
 };
+
+const ACTIVE_STATUSES = ['PENDING', 'ASSIGNED', 'DOWNLOADING', 'VERIFYING', 'INSTALLING', 'STARTING'];
 
 export function DeploymentDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -48,7 +55,7 @@ export function DeploymentDetailPage() {
           </h2>
           <StatusBadge status={deployment.status} />
         </div>
-        {(deployment.status === 'PENDING' || deployment.status === 'IN_PROGRESS') && (
+        {ACTIVE_STATUSES.includes(deployment.status) && (
           <Button variant="destructive" size="sm" onClick={handleCancel}>
             <XCircle className="mr-2 h-4 w-4" /> Cancel
           </Button>
