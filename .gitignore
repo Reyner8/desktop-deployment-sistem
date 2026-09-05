@@ -28,3 +28,9 @@ tmp/
 
 # Build artifacts
 dist/
+
+# Design docs (not part of source code)
+AGENTS.md
+architecture.md
+design-patterns.md
+ui-design.md
