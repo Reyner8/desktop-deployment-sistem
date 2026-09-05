@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToOne } from 'typeorm';
 import { ReleaseStatus } from '@rscb/shared';
 import { Artifact } from '../../artifacts/entities/artifact.entity';
 
@@ -32,7 +32,6 @@ export class Release {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
-  @OneToOne(() => Artifact, (artifact) => artifact.release, { cascade: true, nullable: true })
-  @JoinColumn({ name: 'artifact_id' })
+  @OneToOne(() => Artifact, (artifact) => artifact.release, { nullable: true })
   artifact: Artifact;
 }
