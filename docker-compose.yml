@@ -1,9 +1,10 @@
 services:
   postgres:
     image: postgres:16-alpine
+    container_name: rscb-postgres
     environment:
-      POSTGRES_USER: rscb
-      POSTGRES_PASSWORD: rscb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Tigerlake.85
       POSTGRES_DB: rscb_deployment
     ports:
       - "5432:5432"
@@ -11,13 +12,14 @@ services:
       - postgres-data:/var/lib/postgresql/data
       - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U rscb"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d rscb_deployment"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   minio:
     image: minio/minio:latest
+    container_name: rscb-minio
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minioadmin
@@ -27,20 +29,28 @@ services:
       - "9001:9001"
     volumes:
       - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   backend:
     build:
       context: .
       dockerfile: infra/docker/backend.Dockerfile
+    container_name: rscb-backend
     depends_on:
       postgres:
         condition: service_healthy
       minio:
-        condition: service_started
+        condition: service_healthy
     environment:
       NODE_ENV: development
-      DATABASE_URL: postgresql://rscb:rscb@postgres:5432/rscb_deployment
+      PORT: 3000
+      DATABASE_URL: postgresql://postgres:Tigerlake.85@postgres:5432/rscb_deployment
       JWT_SECRET: dev-jwt-secret-change-in-production
+      JWT_EXPIRES_IN: 24h
       ADMIN_USERNAME: admin
       ADMIN_PASSWORD: admin123
       STORAGE_DRIVER: minio
@@ -50,6 +60,7 @@ services:
       MINIO_SECRET_KEY: minioadmin
       MINIO_BUCKET: rscb-artifacts
       MINIO_USE_SSL: false
+      MINIO_PUBLIC_URL: http://localhost:9000
     ports:
       - "3000:3000"
     volumes:
@@ -59,10 +70,11 @@ services:
     build:
       context: .
       dockerfile: infra/docker/web.Dockerfile
+    container_name: rscb-web
     depends_on:
       - backend
     ports:
-      - "80:80"
+      - "8080:80"
 
 volumes:
   postgres-data:
