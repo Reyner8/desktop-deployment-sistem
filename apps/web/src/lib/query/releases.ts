@@ -14,12 +14,34 @@ export interface Release {
   publishedAt?: string;
 }
 
+export function mapRelease(raw: any): Release {
+  const size = raw.artifact?.size != null ? Number(raw.artifact.size) : 0;
+  return {
+    id: raw.id,
+    version: raw.version,
+    application: raw.application,
+    releaseNotes: raw.releaseNotes,
+    status: raw.status,
+    fileName: raw.artifact?.fileName || '',
+    fileSize: size,
+    sha256: raw.artifact?.sha256 || '',
+    createdAt: raw.createdAt,
+    publishedAt: raw.publishedAt,
+  };
+}
+
 export function useReleases(params?: { status?: string; page?: number; limit?: number }) {
   return useQuery({
     queryKey: ['releases', params],
     queryFn: async () => {
       const { data } = await api.get('/releases', { params });
-      return data as { data: Release[]; total: number; page: number; limit: number };
+      const body = data.data as { data: any[]; total: number; page: number; limit: number };
+      return {
+        data: (body.data || []).map(mapRelease),
+        total: body.total,
+        page: body.page,
+        limit: body.limit,
+      };
     },
   });
 }
@@ -29,7 +51,7 @@ export function useRelease(id: string) {
     queryKey: ['release', id],
     queryFn: async () => {
       const { data } = await api.get(`/releases/${id}`);
-      return data as Release;
+      return mapRelease(data.data);
     },
     enabled: !!id,
   });

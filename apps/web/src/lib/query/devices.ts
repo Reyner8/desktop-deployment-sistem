@@ -13,12 +13,32 @@ export interface Device {
   status: string;
 }
 
+export function mapDevice(raw: any): Device {
+  return {
+    id: raw.id,
+    deviceId: raw.deviceId,
+    hostname: raw.hostname,
+    ipAddress: raw.networks?.[0]?.ipAddress || '',
+    os: raw.os || '',
+    agentVersion: raw.agentVersion,
+    applicationVersion: raw.applicationVersion || '',
+    lastSeen: raw.lastSeen,
+    status: raw.status,
+  };
+}
+
 export function useDevices(params?: { status?: string; search?: string; page?: number; limit?: number }) {
   return useQuery({
     queryKey: ['devices', params],
     queryFn: async () => {
       const { data } = await api.get('/devices', { params });
-      return data as { data: Device[]; total: number; page: number; limit: number };
+      const body = data.data as { data: any[]; total: number; page: number; limit: number };
+      return {
+        data: (body.data || []).map(mapDevice),
+        total: body.total,
+        page: body.page,
+        limit: body.limit,
+      };
     },
   });
 }
@@ -28,7 +48,7 @@ export function useDevice(id: string) {
     queryKey: ['device', id],
     queryFn: async () => {
       const { data } = await api.get(`/devices/${id}`);
-      return data as Device;
+      return mapDevice(data.data);
     },
     enabled: !!id,
   });

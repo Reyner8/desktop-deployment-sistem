@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api/axios';
 import type { Device } from './devices';
 import type { Release } from './releases';
+import { mapDeployment } from './deployments';
 
 export interface DashboardStats {
   totalDevices: number;
@@ -23,34 +24,40 @@ export function useDashboardStats() {
   return useQuery({
     queryKey: ['dashboard'],
     queryFn: async () => {
-      const [devicesRes, releasesRes] = await Promise.all([
+      const [devicesRes, releasesRes, recentRes, failedRes] = await Promise.all([
         api.get('/devices', { params: { limit: 1000 } }),
         api.get('/releases', { params: { status: 'PUBLISHED', limit: 1 } }),
+        api.get('/deployments', { params: { limit: 5 } }),
+        api.get('/deployments', { params: { status: 'FAILED', limit: 1 } }),
       ]);
-      const devices: Device[] = devicesRes.data.data || [];
-      const latestRelease: Release | null = releasesRes.data.data?.[0] || null;
+
+      const devices: Device[] = devicesRes.data.data?.data || [];
+      const latestRelease: Release | null = releasesRes.data.data?.data?.[0] || null;
+      const recent: any[] = recentRes.data.data?.data || [];
+      const failedTotal: number = failedRes.data.data?.total || 0;
+
       const online = devices.filter((d) => d.status === 'ONLINE').length;
       const offline = devices.filter((d) => d.status === 'OFFLINE').length;
       const pending = devices.filter((d) => d.status === 'UPDATE_AVAILABLE').length;
 
-      const stats: DashboardStats = {
+      return {
         totalDevices: devices.length,
         onlineDevices: online,
         offlineDevices: offline,
         pendingUpdates: pending,
-        failedDeployments: 0,
+        failedDeployments: failedTotal,
         currentRelease: latestRelease?.version || null,
-        recentDeployments: [],
+        recentDeployments: recent.map((d) => {
+          const mapped = mapDeployment(d);
+          return {
+            id: mapped.id,
+            deviceHostname: mapped.deviceHostname,
+            releaseVersion: mapped.releaseVersion,
+            status: mapped.status,
+            createdAt: mapped.createdAt,
+          };
+        }),
       };
-
-      try {
-        const deplRes = await api.get('/deployments', { params: { limit: 5 } });
-        stats.recentDeployments = deplRes.data.data || [];
-      } catch {
-        // deployments may not exist yet
-      }
-
-      return stats;
     },
     refetchInterval: 30000,
   });

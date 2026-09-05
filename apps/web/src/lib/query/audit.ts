@@ -15,7 +15,13 @@ export function useAuditLogs(params?: { actor?: string; action?: string; page?: 
     queryKey: ['audit', params],
     queryFn: async () => {
       const { data } = await api.get('/audit', { params });
-      return data as { data: AuditLog[]; total: number; page: number; limit: number };
+      const body = data.data as { data: any[]; total: number; page: number; limit: number };
+      return {
+        data: body.data || [],
+        total: body.total,
+        page: body.page,
+        limit: body.limit,
+      };
     },
   });
 }
