@@ -18,6 +18,7 @@ import { Artifact } from './artifacts/entities/artifact.entity';
 import { Deployment } from './deployments/entities/deployment.entity';
 import { DeploymentEvent } from './deployments/entities/deployment-event.entity';
 import { AuditLog } from './audit/entities/audit-log.entity';
+import { CreateInitialSchema1720000000000 } from './database/migrations/1720000000000-CreateInitialSchema';
 
 @Module({
   imports: [
@@ -35,7 +36,9 @@ import { AuditLog } from './audit/entities/audit-log.entity';
           User, Device, DeviceNetwork, Release, Artifact,
           Deployment, DeploymentEvent, AuditLog,
         ],
-        synchronize: config.get('NODE_ENV') !== 'production',
+        synchronize: false,
+        migrationsRun: true,
+        migrations: [CreateInitialSchema1720000000000],
         logging: config.get('NODE_ENV') === 'development',
       }),
     }),
