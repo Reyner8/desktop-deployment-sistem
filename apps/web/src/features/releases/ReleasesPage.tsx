@@ -13,7 +13,7 @@ import api from '@/lib/api/axios';
 import { toast } from '@/stores/toast-store';
 import { useQueryClient } from '@tanstack/react-query';
 
-const statusOptions = ['ALL', 'DRAFT', 'PUBLISHED'];
+const statusOptions = ['ALL', 'DRAFT', 'VERIFYING', 'PUBLISHED'];
 
 export function ReleasesPage() {
   const navigate = useNavigate();
@@ -97,7 +97,7 @@ export function ReleasesPage() {
                     <Button variant="ghost" size="sm" onClick={() => navigate(`/releases/${release.id}`)}>
                       <Eye className="h-4 w-4" />
                     </Button>
-                    {release.status === 'DRAFT' && (
+                    {(release.status === 'DRAFT' || release.status === 'VERIFYING') && (
                       <Button variant="outline" size="sm" onClick={() => handlePublish(release.id)}>
                         Publish
                       </Button>

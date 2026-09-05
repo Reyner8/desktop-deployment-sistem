@@ -42,7 +42,7 @@ export function ReleaseDetailPage() {
           <StatusBadge status={release.status} />
         </div>
         <div className="flex gap-2">
-          {release.status === 'DRAFT' && (
+          {(release.status === 'DRAFT' || release.status === 'VERIFYING') && (
             <Button onClick={handlePublish}>Publish</Button>
           )}
           <Button variant="outline" onClick={() => navigate('/releases')}>

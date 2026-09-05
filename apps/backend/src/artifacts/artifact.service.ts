@@ -55,7 +55,7 @@ export class ArtifactService {
       release,
     });
 
-    release.status = ReleaseStatus.UPLOADING;
+    release.status = ReleaseStatus.VERIFYING;
     await this.releaseRepository.save(release);
     const saved = await this.artifactRepository.save(artifact);
     return saved;
