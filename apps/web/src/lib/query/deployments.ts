@@ -1,18 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api/axios';
 
-export interface Deployment {
-  id: string;
-  deviceId: string;
-  deviceHostname: string;
-  releaseId: string;
-  releaseVersion: string;
-  status: string;
-  createdAt: string;
-  updatedAt: string;
-  events?: DeploymentEvent[];
-}
-
 export interface DeploymentEvent {
   id: string;
   deploymentId: string;
@@ -21,12 +9,52 @@ export interface DeploymentEvent {
   timestamp: string;
 }
 
-export function useDeployments(params?: { status?: string; deviceId?: string; page?: number; limit?: number }) {
+export interface Deployment {
+  id: string;
+  deviceId: string;
+  deviceHostname: string;
+  releaseId: string;
+  releaseVersion: string;
+  status: string;
+  errorMessage?: string;
+  createdAt: string;
+  updatedAt: string;
+  events?: DeploymentEvent[];
+}
+
+export function mapDeployment(raw: any): Deployment {
+  return {
+    id: raw.id,
+    deviceId: raw.device?.id || '',
+    deviceHostname: raw.device?.hostname || '-',
+    releaseId: raw.release?.id || '',
+    releaseVersion: raw.release?.version || '-',
+    status: raw.status,
+    errorMessage: raw.errorMessage,
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
+    events: (raw.events || []).map((e: any) => ({
+      id: e.id,
+      deploymentId: raw.id,
+      status: e.status,
+      message: e.message,
+      timestamp: e.timestamp,
+    })),
+  };
+}
+
+export function useDeployments(params?: { status?: string; releaseId?: string; deviceId?: string; page?: number; limit?: number }) {
   return useQuery({
     queryKey: ['deployments', params],
     queryFn: async () => {
       const { data } = await api.get('/deployments', { params });
-      return data as { data: Deployment[]; total: number; page: number; limit: number };
+      const body = data.data as { data: any[]; total: number; page: number; limit: number };
+      return {
+        data: (body.data || []).map(mapDeployment),
+        total: body.total,
+        page: body.page,
+        limit: body.limit,
+      };
     },
   });
 }
@@ -36,7 +64,7 @@ export function useDeployment(id: string) {
     queryKey: ['deployment', id],
     queryFn: async () => {
       const { data } = await api.get(`/deployments/${id}`);
-      return data as Deployment;
+      return mapDeployment(data.data);
     },
     enabled: !!id,
   });
@@ -47,10 +75,12 @@ export function useCreateDeployment() {
   return useMutation({
     mutationFn: async (payload: { releaseId: string; deviceIds: string[] }) => {
       const { data } = await api.post('/deployments', payload);
-      return data as Deployment;
+      const created = data.data || [];
+      return mapDeployment(created[0]);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deployments'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }
@@ -60,10 +90,11 @@ export function useCancelDeployment() {
   return useMutation({
     mutationFn: async (id: string) => {
       const { data } = await api.post(`/deployments/${id}/cancel`);
-      return data as Deployment;
+      return mapDeployment(data.data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deployments'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }
