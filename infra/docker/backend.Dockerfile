@@ -11,9 +11,10 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 RUN apk add --no-cache tzdata curl
 ENV NODE_ENV=production
-COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/apps/backend/dist ./dist
 COPY --from=builder /app/apps/backend/package.json ./package.json
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/packages/shared/package.json ./packages/shared/package.json
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 EXPOSE 3000
 CMD ["node", "dist/apps/backend/src/main"]
