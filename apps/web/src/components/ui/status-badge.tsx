@@ -15,8 +15,11 @@ const statusConfig: Record<string, { label: string; variant: 'success' | 'destru
   OFFLINE: { label: 'Offline', variant: 'muted', icon: XCircle },
   UPDATE_AVAILABLE: { label: 'Update Available', variant: 'warning', icon: AlertCircle },
   UPDATING: { label: 'Updating', variant: 'info', icon: RefreshCw },
+  ASSIGNED: { label: 'Assigned', variant: 'info', icon: Clock },
   DOWNLOADING: { label: 'Downloading', variant: 'info', icon: RefreshCw },
+  VERIFYING: { label: 'Verifying', variant: 'info', icon: RefreshCw },
   INSTALLING: { label: 'Installing', variant: 'info', icon: RefreshCw },
+  STARTING: { label: 'Starting', variant: 'info', icon: RefreshCw },
   ERROR: { label: 'Error', variant: 'destructive', icon: AlertTriangle },
   FAILED: { label: 'Failed', variant: 'destructive', icon: AlertTriangle },
   DRAFT: { label: 'Draft', variant: 'muted', icon: FileText },
@@ -24,7 +27,6 @@ const statusConfig: Record<string, { label: string; variant: 'success' | 'destru
   PENDING: { label: 'Pending', variant: 'warning', icon: Clock },
   SUCCESS: { label: 'Success', variant: 'success', icon: CheckCircle },
   CANCELLED: { label: 'Cancelled', variant: 'muted', icon: XCircle },
-  IN_PROGRESS: { label: 'In Progress', variant: 'info', icon: RefreshCw },
 };
 
 export function StatusBadge({ status }: { status: string }) {
