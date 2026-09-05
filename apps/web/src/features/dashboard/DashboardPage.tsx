@@ -2,6 +2,7 @@ import { useDashboardStats } from '@/lib/query/dashboard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import {
   Monitor,
   Wifi,
@@ -55,26 +56,26 @@ export function DashboardPage() {
               ))}
             </div>
           ) : data?.recentDeployments?.length ? (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-left text-muted-foreground">
-                  <th className="pb-2 font-medium">Device</th>
-                  <th className="pb-2 font-medium">Release</th>
-                  <th className="pb-2 font-medium">Status</th>
-                  <th className="pb-2 font-medium">Date</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Device</TableHead>
+                  <TableHead>Release</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Date</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {data.recentDeployments.map((d) => (
-                  <tr key={d.id} className="border-b last:border-0">
-                    <td className="py-2">{d.deviceHostname}</td>
-                    <td className="py-2">{d.releaseVersion}</td>
-                    <td className="py-2"><StatusBadge status={d.status} /></td>
-                    <td className="py-2">{new Date(d.createdAt).toLocaleDateString()}</td>
-                  </tr>
+                  <TableRow key={d.id}>
+                    <TableCell className="font-medium">{d.deviceHostname}</TableCell>
+                    <TableCell>{d.releaseVersion}</TableCell>
+                    <TableCell><StatusBadge status={d.status} /></TableCell>
+                    <TableCell>{new Date(d.createdAt).toLocaleDateString()}</TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           ) : (
             <p className="text-sm text-muted-foreground">No recent deployments.</p>
           )}
