@@ -1,19 +1,21 @@
 import { useState } from 'react';
 import { useAuditLogs } from '@/lib/query/audit';
 import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PaginationBar } from '@/components/ui/pagination-bar';
 import { ScrollText, Search } from 'lucide-react';
 
 export function AuditPage() {
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [actorFilter, setActorFilter] = useState('');
   const { data, isLoading } = useAuditLogs({
     actor: actorFilter || undefined,
     page,
-    limit: 20,
+    limit,
   });
 
   return (
@@ -31,7 +33,9 @@ export function AuditPage() {
         </div>
       </div>
 
-      <Table>
+      <Card>
+        <CardContent className="pt-6">
+          <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Actor</TableHead>
@@ -78,17 +82,17 @@ export function AuditPage() {
           )}
         </TableBody>
       </Table>
+        </CardContent>
+      </Card>
 
-      {data && data.total > 20 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            Showing {(page - 1) * 20 + 1}-{Math.min(page * 20, data.total)} of {data.total}
-          </p>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>
-            <Button variant="outline" size="sm" disabled={page * 20 >= data.total} onClick={() => setPage(page + 1)}>Next</Button>
-          </div>
-        </div>
+      {data && (
+        <PaginationBar
+          page={page}
+          total={data.total}
+          limit={limit}
+          onPageChange={setPage}
+          onLimitChange={setLimit}
+        />
       )}
     </div>
   );
