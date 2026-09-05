@@ -20,7 +20,7 @@ const eventIcons: Record<string, React.ElementType> = {
   CANCELLED: XCircle,
 };
 
-const ACTIVE_STATUSES = ['PENDING', 'ASSIGNED', 'DOWNLOADING', 'VERIFYING', 'INSTALLING', 'STARTING'];
+const ACTIVE_STATUSES = ['ASSIGNED'];
 
 export function DeploymentDetailPage() {
   const { id } = useParams<{ id: string }>();
