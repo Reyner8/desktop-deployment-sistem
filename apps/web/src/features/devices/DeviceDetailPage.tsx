@@ -3,6 +3,7 @@ import { useDevice } from '@/lib/query/devices';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Separator } from '@/components/ui/separator';
 import { Monitor } from 'lucide-react';
 
 export function DeviceDetailPage() {
@@ -13,7 +14,7 @@ export function DeviceDetailPage() {
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-40 w-full" />
+        <Skeleton className="h-72 w-full" />
       </div>
     );
   }
@@ -30,30 +31,31 @@ export function DeviceDetailPage() {
         <StatusBadge status={device.status} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader><CardTitle>Device Information</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            <Row label="Device ID" value={device.deviceId} />
+      <Card>
+        <CardHeader><CardTitle>Device Information</CardTitle></CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
+            <Row label="Device ID" value={<span className="break-all">{device.deviceId}</span>} />
             <Row label="Hostname" value={device.hostname} />
-            <Row label="IP Address" value={device.ipAddress} />
-            <Row label="Operating System" value={device.os} />
+            <Row label="IP Address" value={device.ipAddress || '-'} />
+            <Row label="Operating System" value={device.os || '-'} />
             <Row label="Agent Version" value={device.agentVersion} />
             <Row label="SIMRS Version" value={device.applicationVersion || '-'} />
             <Row label="Last Seen" value={new Date(device.lastSeen).toLocaleString()} />
             <Row label="Status" value={<StatusBadge status={device.status} />} />
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex justify-between text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium">{value}</span>
+    <div className="py-2.5">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="font-medium mt-0.5">{value}</p>
+      <Separator className="mt-2.5" />
     </div>
   );
 }

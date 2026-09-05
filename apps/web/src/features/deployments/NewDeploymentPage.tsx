@@ -5,23 +5,31 @@ import { useReleases } from '@/lib/query/releases';
 import { useCreateDeployment } from '@/lib/query/deployments';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/stores/toast-store';
-import { ArrowLeft, ArrowRight, Check, Rocket } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Rocket, Search } from 'lucide-react';
 
 export function NewDeploymentPage() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [selectedReleaseId, setSelectedReleaseId] = useState<string>('');
   const [selectedDeviceIds, setSelectedDeviceIds] = useState<Set<string>>(new Set());
+  const [deviceSearch, setDeviceSearch] = useState('');
   const createDeployment = useCreateDeployment();
 
   const { data: releases, isLoading: loadingReleases } = useReleases({ status: 'PUBLISHED', limit: 100 });
   const { data: devices, isLoading: loadingDevices } = useDevices({ limit: 500 });
+
+  const visibleDevices = devices?.data?.filter(
+    (d) =>
+      d.hostname.toLowerCase().includes(deviceSearch.toLowerCase()) ||
+      d.ipAddress.toLowerCase().includes(deviceSearch.toLowerCase()),
+  );
 
   const toggleDevice = (id: string) => {
     setSelectedDeviceIds((prev) => {
@@ -33,12 +41,16 @@ export function NewDeploymentPage() {
   };
 
   const selectAll = () => {
-    if (!devices?.data) return;
-    if (selectedDeviceIds.size === devices.data.length) {
-      setSelectedDeviceIds(new Set());
-    } else {
-      setSelectedDeviceIds(new Set(devices.data.map((d) => d.id)));
-    }
+    if (!visibleDevices?.length) return;
+    const allVisibleSelected = visibleDevices.every((d) => selectedDeviceIds.has(d.id));
+    setSelectedDeviceIds((prev) => {
+      const next = new Set(prev);
+      visibleDevices.forEach((d) => {
+        if (allVisibleSelected) next.delete(d.id);
+        else next.add(d.id);
+      });
+      return next;
+    });
   };
 
   const handleDeploy = async () => {
@@ -106,11 +118,24 @@ export function NewDeploymentPage() {
       {step === 2 && (
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3">
               <CardTitle>Select Devices</CardTitle>
-              <Button variant="outline" size="sm" onClick={selectAll}>
-                {selectedDeviceIds.size === devices?.data?.length ? 'Deselect All' : 'Select All'}
-              </Button>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search hostname or IP..."
+                    value={deviceSearch}
+                    onChange={(e) => setDeviceSearch(e.target.value)}
+                    className="pl-8 w-56"
+                  />
+                </div>
+                <Button variant="outline" size="sm" onClick={selectAll}>
+                  {visibleDevices?.length && visibleDevices.every((d) => selectedDeviceIds.has(d.id))
+                    ? 'Deselect All'
+                    : 'Select All'}
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -126,7 +151,7 @@ export function NewDeploymentPage() {
                   <TableRow>
                     <TableHead className="w-10">
                       <Checkbox
-                        checked={devices?.data?.length === selectedDeviceIds.size && devices?.data?.length > 0}
+                        checked={!!visibleDevices?.length && visibleDevices.every((d) => selectedDeviceIds.has(d.id))}
                         onCheckedChange={selectAll}
                       />
                     </TableHead>
@@ -136,7 +161,8 @@ export function NewDeploymentPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {devices?.data?.map((device) => (
+                  {visibleDevices?.length ? (
+                    visibleDevices.map((device) => (
                     <TableRow key={device.id} className="cursor-pointer" onClick={() => toggleDevice(device.id)}>
                       <TableCell>
                         <Checkbox
@@ -149,7 +175,14 @@ export function NewDeploymentPage() {
                       <TableCell>{device.applicationVersion || '-'}</TableCell>
                       <TableCell><StatusBadge status={device.status} /></TableCell>
                     </TableRow>
-                  ))}
+                  ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                        No devices match the search
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             )}
