@@ -1,0 +1,7 @@
+export enum DeviceStatus {
+  ONLINE = 'ONLINE',
+  OFFLINE = 'OFFLINE',
+  UPDATE_AVAILABLE = 'UPDATE_AVAILABLE',
+  UPDATING = 'UPDATING',
+  ERROR = 'ERROR',
+}

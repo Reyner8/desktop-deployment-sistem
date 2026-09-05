@@ -1,0 +1,7 @@
+export enum ReleaseStatus {
+  DRAFT = 'DRAFT',
+  UPLOADING = 'UPLOADING',
+  VERIFYING = 'VERIFYING',
+  PUBLISHED = 'PUBLISHED',
+  FAILED = 'FAILED',
+}

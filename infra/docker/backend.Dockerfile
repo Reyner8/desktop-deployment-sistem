@@ -1,0 +1,18 @@
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package.json package-lock.json ./
+COPY packages/shared ./packages/shared
+COPY apps/backend ./apps/backend
+RUN npm ci
+RUN npm run build -w packages/shared
+RUN npm run build -w apps/backend
+
+FROM node:20-alpine AS runner
+WORKDIR /app
+RUN apk add --no-cache tzdata
+ENV NODE_ENV=production
+COPY --from=builder /app/apps/backend/dist ./dist
+COPY --from=builder /app/apps/backend/package.json ./package.json
+COPY --from=builder /app/node_modules ./node_modules
+EXPOSE 3000
+CMD ["node", "dist/main"]

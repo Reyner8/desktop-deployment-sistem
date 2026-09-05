@@ -1,0 +1,30 @@
+node_modules/
+dist/
+.env
+.env.local
+.env.production
+*.log
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build
+apps/backend/dist/
+apps/web/dist/
+packages/shared/dist/
+
+# Coverage
+coverage/
+
+# Temp
+.deployment/
+tmp/
+*.tsbuildinfo
+
+# Build artifacts
+dist/
