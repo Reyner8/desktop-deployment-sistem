@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import * as path from 'path';
 import { Artifact } from './entities/artifact.entity';
@@ -16,6 +17,7 @@ export class ArtifactService {
     @InjectRepository(Release)
     private readonly releaseRepository: Repository<Release>,
     private readonly storage: ObjectStorage,
+    private readonly configService: ConfigService,
   ) {}
 
   async uploadFile(releaseId: string, file: Express.Multer.File) {
@@ -41,13 +43,15 @@ export class ArtifactService {
       await this.artifactRepository.remove(release.artifact);
     }
 
+    const storageDriver = this.configService.get('STORAGE_DRIVER') || 'local';
+
     const artifact = this.artifactRepository.create({
       fileName: file.originalname,
       objectKey,
       size: file.size,
       sha256,
       mimeType: file.mimetype,
-      storageDriver: 'local',
+      storageDriver,
       release,
     });
 
