@@ -6,8 +6,8 @@ Sistem deployment terpusat untuk mendistribusikan aplikasi SIMRS ke komputer uni
 
 - **Backend**: NestJS (monolith modular)
 - **Frontend**: ReactJS + TypeScript
-- **Database**: PostgreSQL
-- **Object Storage**: MinIO
+- **Database**: PostgreSQL 16 (Docker)
+- **Object Storage**: MinIO (Docker)
 - **Agent**: Java 21 (repository terpisah)
 
 ## Struktur Repository
@@ -15,56 +15,91 @@ Sistem deployment terpusat untuk mendistribusikan aplikasi SIMRS ke komputer uni
 ```
 rscb-deployment/
 ├── apps/
-│   ├── backend/     # NestJS monolith backend
-│   └── web/         # ReactJS frontend dashboard
+│   ├── backend/        # NestJS monolith backend
+│   │   └── src/
+│   │       ├── database/migrations/  # TypeORM migrations
+│   │       ├── artifacts/storage/    # MinIO + Local storage adapter
+│   │       └── ...
+│   └── web/            # ReactJS frontend dashboard
 ├── packages/
-│   └── shared/      # Shared types dan utilities
+│   └── shared/         # Shared types, enums, constants
 ├── infra/
-│   ├── docker/      # Dockerfiles
-│   ├── nginx/       # Nginx configuration
-│   └── postgres/    # Database init scripts
-├── docker-compose.yml
-└── docker-compose.prod.yml
+│   ├── docker/         # Dockerfiles
+│   ├── nginx/          # Nginx configuration
+│   └── postgres/       # Database init scripts
+├── docs/               # Dokumentasi teknis
+├── docker-compose.yml          # Development
+└── docker-compose.prod.yml     # Production
 ```
 
 ## Prasyarat
 
 - Node.js >= 18
-- Docker & Docker Compose (untuk development dengan infrastruktur lengkap)
-- PostgreSQL (jika running tanpa Docker)
-- MinIO (jika running tanpa Docker)
+- Docker & Docker Compose
 
 ## Development
 
-### Dengan Docker
+### 1. Jalankan seluruh stack (Docker)
 
 ```bash
-docker compose up -d
+docker compose up -d --build
 ```
 
-### Tanpa Docker
+Ini akan menjalankan:
+
+| Service  | URL                          | Keterangan            |
+|----------|------------------------------|-----------------------|
+| Web      | http://localhost:8080        | Dashboard admin       |
+| Backend  | http://localhost:3000        | REST API              |
+| PostgreSQL | localhost:5432             | Database              |
+| MinIO    | http://localhost:9001        | Console (minioadmin)  |
+| MinIO API | http://localhost:9000       | S3-compatible API     |
+
+### 2. Login ke dashboard
+
+- URL: `http://localhost:8080`
+- Username: `admin`
+- Password: `admin123`
+
+### 3. Jalankan tanpa Docker (lokal)
 
 ```bash
-# Install dependencies
 npm install
-
-# Setup environment
-cp apps/backend/.env.example apps/backend/.env
-# Edit .env sesuai konfigurasi lokal
 
 # Build shared package
 npm run build -w packages/shared
 
-# Run backend
+# Jalankan backend (butuh PostgreSQL & MinIO lokal)
+cp apps/backend/.env.example apps/backend/.env
+# Edit .env sesuai konfigurasi lokal
 npm run dev:backend
 
-# Run frontend (terminal terpisah)
+# Jalankan frontend (terminal terpisah)
 npm run dev:web
 ```
 
-## API Documentation
+## Skema Database
 
-Endpoint utama:
+Skema database diprovisiing otomatis via **TypeORM migrations** saat backend container pertama kali start.
+
+- Migration file: `apps/backend/src/database/migrations/`
+- `synchronize: false` — tidak ada auto-sync dari entity
+- `migrationsRun: true` — migrasi jalan otomatis saat startup
+
+Lihat [docs/database-schema.md](docs/database-schema.md) untuk detail skema.
+
+## Artifact Storage
+
+Artifact disimpan di **MinIO** (production) atau **local filesystem** (fallback).
+
+- Driver dikonfigurasi via `STORAGE_DRIVER` (`minio` | `local`)
+- MinIO: presigned URL untuk download agent
+- SHA-256 dihitung server-side saat upload
+- Bucket `rscb-artifacts` dibuat otomatis saat startup
+
+Lihat [docs/docker-guide.md](docs/docker-guide.md) untuk konfigurasi storage.
+
+## API Documentation
 
 | Method | Endpoint | Deskripsi |
 |--------|----------|-----------|
@@ -90,36 +125,50 @@ Endpoint utama:
 ### Release State Machine
 
 ```
-DRAFT → UPLOADED → PUBLISHED
+DRAFT → UPLOADING → VERIFYING → PUBLISHED
+                     ↓
+                   FAILED
 ```
-
-- **DRAFT**: Release dibuat, artifact belum diupload.
-- **UPLOADED**: Artifact sudah diupload, SHA-256 sudah diverifikasi.
-- **PUBLISHED**: Release siap didistribusikan ke agent. Release yang sudah PUBLISHED tidak dapat diubah.
 
 ### Deployment State Machine
 
 ```
-PENDING → DOWNLOADING → DOWNLOADED → INSTALLING → SUCCESS
-                                      ↓
-                                    FAILED
+PENDING → ASSIGNED → DOWNLOADING → VERIFYING → INSTALLING → STARTING → SUCCESS
+                       ↓              ↓           ↓
+                     FAILED          FAILED      FAILED
+                       ↓
+                     CANCELLED
 ```
 
-- **PENDING**: Deployment dibuat, menunggu agent mengambil task.
-- **DOWNLOADING**: Agent sedang mengunduh artifact.
-- **DOWNLOADED**: Artifact berhasil diunduh dan SHA-256 cocok.
-- **INSTALLING**: Agent sedang melakukan instalasi.
-- **SUCCESS**: Instalasi berhasil.
-- **FAILED**: Instalasi gagal (download corrupt, verifikasi gagal, aplikasi sedang berjalan, error instalasi).
+## Development Commands
+
+```bash
+# Build semua
+npm run build
+
+# Jalankan backend dev (watch mode)
+npm run dev:backend
+
+# Jalankan frontend dev
+npm run dev:web
+
+# Generate migration
+npm run migration:generate -w apps/backend
+
+# Run migrations manual
+npm run migration:run -w apps/backend
+
+# Docker full rebuild
+docker compose down -v && docker compose up -d --build
+```
 
 ## Catatan Keamanan
 
 - Jangan commit `.env` ke repository
+- Ganti semua default secret sebelum production
 - Agent tidak memiliki akses ke database atau MinIO credential
 - Gunakan HTTPS di production
-- Ganti semua default secret sebelum production
-- Production credentials hanya boleh diketahui oleh admin server
 
 ## Lisensi
 
-MIT
+Apache License 2.0
