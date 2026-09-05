@@ -5,8 +5,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { toast } from '@/stores/toast-store';
 import api from '@/lib/api/axios';
 import { ArrowLeft, ArrowRight, Upload, Check } from 'lucide-react';
@@ -28,16 +29,12 @@ export function NewReleasePage() {
   const [publishing, setPublishing] = useState(false);
   const [releaseId, setReleaseId] = useState<string | null>(null);
 
-  const {
-    register,
-    handleSubmit,
-    watch,
-    formState: { errors },
-  } = useForm<ReleaseForm>({
+  const form = useForm<ReleaseForm>({
     resolver: zodResolver(releaseSchema),
+    defaultValues: { application: '', version: '', releaseNotes: '' },
   });
 
-  const formValues = watch();
+  const formValues = form.watch();
 
   const handleFileUpload = async () => {
     if (!uploadedFile) return;
@@ -105,27 +102,50 @@ export function NewReleasePage() {
         <Card>
           <CardHeader><CardTitle>Release Information</CardTitle></CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit(handleCreate)} className="space-y-4">
-              <div className="space-y-2">
-                <Label>Application Name</Label>
-                <Input {...register('application')} placeholder="e.g. SIMRS" />
-                {errors.application && <p className="text-sm text-destructive">{errors.application.message}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label>Version</Label>
-                <Input {...register('version')} placeholder="e.g. 1.5.0" />
-                {errors.version && <p className="text-sm text-destructive">{errors.version.message}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label>Release Notes</Label>
-                <textarea
-                  {...register('releaseNotes')}
-                  className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="Describe what's new in this release..."
-                />
-              </div>
+            <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleCreate)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="application"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Application Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. SIMRS" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="version"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Version</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. 1.5.0" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="releaseNotes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Release Notes</FormLabel>
+                    <FormControl>
+                      <Textarea className="min-h-[100px]" placeholder="Describe what's new in this release..." {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <Button type="submit"><ArrowRight className="mr-2 h-4 w-4" /> Next: Upload Artifact</Button>
             </form>
+          </Form>
           </CardContent>
         </Card>
       )}
