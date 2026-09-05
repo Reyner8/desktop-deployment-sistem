@@ -25,7 +25,11 @@ export class AuthController {
       return { success: false, message: 'Invalid credentials' };
     }
     const result = await this.authService.login(user);
-    return { success: true, data: result };
+    return {
+      success: true,
+      token: result.accessToken,
+      user: { username: user.username, displayName: user.displayName },
+    };
   }
 
   @Post('register')
