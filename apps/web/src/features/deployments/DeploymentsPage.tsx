@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useDeployments } from '@/lib/query/deployments';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PaginationBar } from '@/components/ui/pagination-bar';
 import { Eye, Plus, Rocket } from 'lucide-react';
 
 const statusOptions = ['ALL', 'PENDING', 'ASSIGNED', 'DOWNLOADING', 'VERIFYING', 'INSTALLING', 'STARTING', 'SUCCESS', 'FAILED', 'CANCELLED'];
@@ -13,11 +15,12 @@ const statusOptions = ['ALL', 'PENDING', 'ASSIGNED', 'DOWNLOADING', 'VERIFYING',
 export function DeploymentsPage() {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [statusFilter, setStatusFilter] = useState('ALL');
   const { data, isLoading } = useDeployments({
     status: statusFilter === 'ALL' ? undefined : statusFilter,
     page,
-    limit: 20,
+    limit: limit,
   });
 
   return (
@@ -41,7 +44,9 @@ export function DeploymentsPage() {
         </div>
       </div>
 
-      <Table>
+      <Card>
+        <CardContent className="pt-6">
+          <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Device</TableHead>
@@ -84,17 +89,17 @@ export function DeploymentsPage() {
           )}
         </TableBody>
       </Table>
+        </CardContent>
+      </Card>
 
-      {data && data.total > 20 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            Showing {(page - 1) * 20 + 1}-{Math.min(page * 20, data.total)} of {data.total}
-          </p>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>
-            <Button variant="outline" size="sm" disabled={page * 20 >= data.total} onClick={() => setPage(page + 1)}>Next</Button>
-          </div>
-        </div>
+      {data && (
+        <PaginationBar
+          page={page}
+          total={data.total}
+          limit={limit}
+          onPageChange={setPage}
+          onLimitChange={setLimit}
+        />
       )}
     </div>
   );
