@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as Minio from 'minio';
+import { CopySourceOptions, CopyDestinationOptions } from 'minio';
 import { ObjectStorage } from './object-storage';
 
 @Injectable()
@@ -83,5 +84,24 @@ export class MinioStorage extends ObjectStorage implements OnModuleInit {
 
   async delete(key: string): Promise<void> {
     await this.client.removeObject(this.bucket, key);
+  }
+
+  async composeParts(partKeys: string[], objectKey: string): Promise<void> {
+    const sources = partKeys.map(
+      (objectName) =>
+        new CopySourceOptions({ Bucket: this.bucket, Object: objectName }),
+    );
+    const destination = new CopyDestinationOptions({
+      Bucket: this.bucket,
+      Object: objectKey,
+    });
+    await this.client.composeObject(destination, sources, { maxConcurrency: 4 });
+    await Promise.all(
+      partKeys.map((objectName) => this.client.removeObject(this.bucket, objectName)),
+    );
+  }
+
+  async getReadStream(key: string): Promise<NodeJS.ReadableStream> {
+    return this.client.getObject(this.bucket, key);
   }
 }
