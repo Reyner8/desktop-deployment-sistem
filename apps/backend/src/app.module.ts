@@ -9,6 +9,7 @@ import { ReleaseModule } from './releases/release.module';
 import { ArtifactModule } from './artifacts/artifact.module';
 import { DeploymentModule } from './deployments/deployment.module';
 import { AuditModule } from './audit/audit.module';
+import { CiModule } from './ci/ci.module';
 import { HealthModule } from './health/health.module';
 import { User } from './auth/entities/user.entity';
 import { Device } from './devices/entities/device.entity';
@@ -18,7 +19,9 @@ import { Artifact } from './artifacts/entities/artifact.entity';
 import { Deployment } from './deployments/entities/deployment.entity';
 import { DeploymentEvent } from './deployments/entities/deployment-event.entity';
 import { AuditLog } from './audit/entities/audit-log.entity';
+import { UploadSession } from './ci/entities/upload-session.entity';
 import { CreateInitialSchema1720000000000 } from './database/migrations/1720000000000-CreateInitialSchema';
+import { AddUploadSessions1730000000000 } from './database/migrations/1730000000000-AddUploadSessions';
 
 @Module({
   imports: [
@@ -34,11 +37,11 @@ import { CreateInitialSchema1720000000000 } from './database/migrations/17200000
         url: config.get('DATABASE_URL'),
         entities: [
           User, Device, DeviceNetwork, Release, Artifact,
-          Deployment, DeploymentEvent, AuditLog,
+          Deployment, DeploymentEvent, AuditLog, UploadSession,
         ],
         synchronize: false,
         migrationsRun: true,
-        migrations: [CreateInitialSchema1720000000000],
+        migrations: [CreateInitialSchema1720000000000, AddUploadSessions1730000000000],
         logging: config.get('NODE_ENV') === 'development',
       }),
     }),
@@ -50,6 +53,7 @@ import { CreateInitialSchema1720000000000 } from './database/migrations/17200000
     ArtifactModule,
     DeploymentModule,
     AuditModule,
+    CiModule,
     HealthModule,
   ],
 })
