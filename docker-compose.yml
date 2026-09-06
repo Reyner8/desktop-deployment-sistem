@@ -53,6 +53,7 @@ services:
       JWT_EXPIRES_IN: 24h
       ADMIN_USERNAME: admin
       ADMIN_PASSWORD: admin123
+      CI_API_KEY: dev-ci-key-change-in-production
       STORAGE_DRIVER: minio
       MINIO_ENDPOINT: minio
       MINIO_PORT: 9000
