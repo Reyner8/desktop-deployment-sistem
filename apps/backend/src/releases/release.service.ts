@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like } from 'typeorm';
 import { Release } from './entities/release.entity';
+import { ArtifactService } from '../artifacts/artifact.service';
 import { CreateReleaseDto } from './dto/create-release.dto';
 import { QueryReleaseDto } from './dto/query-release.dto';
 import { ReleaseStatus, releaseTransitions } from '@rscb/shared';
@@ -11,6 +12,7 @@ export class ReleaseService {
   constructor(
     @InjectRepository(Release)
     private readonly releaseRepository: Repository<Release>,
+    private readonly artifactService: ArtifactService,
   ) {}
 
   async create(dto: CreateReleaseDto) {
@@ -53,8 +55,10 @@ export class ReleaseService {
       order: { createdAt: 'DESC' },
     });
 
+    const items = await Promise.all(data.map((release) => this.withDownloadUrl(release)));
+
     return {
-      data,
+      data: items,
       total,
       page,
       limit,
@@ -70,7 +74,18 @@ export class ReleaseService {
     if (!release) {
       throw new NotFoundException('Release not found');
     }
-    return release;
+    return this.withDownloadUrl(release);
+  }
+
+  async findByApplicationVersion(application: string, version: string) {
+    const release = await this.releaseRepository.findOne({
+      where: { application, version },
+      relations: ['artifact'],
+    });
+    if (!release) {
+      return null;
+    }
+    return this.withDownloadUrl(release);
   }
 
   async publish(id: string) {
@@ -93,5 +108,15 @@ export class ReleaseService {
     const release = await this.findOne(id);
     release.status = ReleaseStatus.PUBLISHED;
     return this.releaseRepository.save(release);
+  }
+
+  private async withDownloadUrl(release: Release) {
+    if (release.artifact) {
+      const downloadUrl = await this.artifactService.getDownloadUrl(
+        release.artifact,
+      );
+      return { ...release, downloadUrl };
+    }
+    return { ...release, downloadUrl: null };
   }
 }
