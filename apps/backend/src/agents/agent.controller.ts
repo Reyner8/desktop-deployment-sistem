@@ -4,10 +4,12 @@ import {
   Get,
   Body,
   Param,
+  Req,
   UseGuards,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { AgentService } from './agent.service';
 import { DeviceAgentGuard } from './device-agent.guard';
 import { RegisterAgentDto } from './dto/register-agent.dto';
@@ -28,15 +30,17 @@ export class AgentController {
 
   @Post('heartbeat')
   @HttpCode(HttpStatus.OK)
-  async heartbeat(@Body() dto: HeartbeatDto) {
-    const deviceId = dto.hostname;
-    const result = await this.agentService.heartbeat(deviceId, dto);
+  async heartbeat(@Req() request: Request, @Body() dto: HeartbeatDto) {
+    const device = (request as any).device as { deviceId: string };
+    const result = await this.agentService.heartbeat(device.deviceId, dto);
     return { success: true, data: result };
   }
 
   @Get('updates')
-  async getUpdates() {
-    return { success: true, data: { hasUpdate: false } };
+  async getUpdates(@Req() request: Request) {
+    const device = (request as any).device as { deviceId: string };
+    const result = await this.agentService.getUpdates(device.deviceId);
+    return { success: true, data: result };
   }
 
   @Post('deployments/:id/status')

@@ -2,13 +2,13 @@ import { Injectable, NotFoundException, ConflictException, BadRequestException }
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { v4 as uuid } from 'uuid';
-import * as crypto from 'crypto';
 import { Device } from '../devices/entities/device.entity';
 import { DeviceNetwork } from '../devices/entities/device-network.entity';
 import { Release } from '../releases/entities/release.entity';
 import { Artifact } from '../artifacts/entities/artifact.entity';
 import { Deployment } from '../deployments/entities/deployment.entity';
 import { DeploymentEvent } from '../deployments/entities/deployment-event.entity';
+import { ArtifactService } from '../artifacts/artifact.service';
 import { RegisterAgentDto } from './dto/register-agent.dto';
 import { HeartbeatDto } from './dto/heartbeat.dto';
 import { DeploymentStatusDto } from './dto/deployment-status.dto';
@@ -29,6 +29,7 @@ export class AgentService {
     private readonly deploymentRepository: Repository<Deployment>,
     @InjectRepository(DeploymentEvent)
     private readonly eventRepository: Repository<DeploymentEvent>,
+    private readonly artifactService: ArtifactService,
   ) {}
 
   async register(dto: RegisterAgentDto) {
@@ -95,20 +96,35 @@ export class AgentService {
       return { hasUpdate: false };
     }
     const latest = releases[0];
+    let hasUpdate = false;
     if (!device.applicationVersion) {
-      return { hasUpdate: true, latestVersion: latest.version, downloadUrl: `/api/v1/agents/artifacts/${latest.id}/download-url` };
-    }
-    try {
-      const cmp = this.compareVersions(latest.version, device.applicationVersion);
-      if (cmp > 0) {
-        return { hasUpdate: true, latestVersion: latest.version, downloadUrl: `/api/v1/agents/artifacts/${latest.id}/download-url` };
-      }
-    } catch {
-      if (latest.version !== device.applicationVersion) {
-        return { hasUpdate: true, latestVersion: latest.version, downloadUrl: `/api/v1/agents/artifacts/${latest.id}/download-url` };
+      hasUpdate = true;
+    } else {
+      try {
+        hasUpdate = this.compareVersions(latest.version, device.applicationVersion) > 0;
+      } catch {
+        hasUpdate = latest.version !== device.applicationVersion;
       }
     }
-    return { hasUpdate: false };
+    const deployment = await this.deploymentRepository.findOne({
+      where: {
+        device: { deviceId },
+        status: DeploymentStatus.PENDING,
+      },
+      relations: ['release'],
+      order: { createdAt: 'ASC' },
+    });
+
+    return {
+      hasUpdate,
+      latestVersion: latest.version,
+      downloadUrl: latest.artifact
+        ? `/api/v1/agents/artifacts/${latest.id}/download-url`
+        : null,
+      deploymentId: deployment?.id || null,
+      targetVersion: deployment?.release?.version || null,
+      deploymentStatus: deployment?.status || null,
+    };
   }
 
   async reportDeploymentStatus(deploymentId: string, dto: DeploymentStatusDto) {
@@ -156,7 +172,8 @@ export class AgentService {
     if (!release || !release.artifact) {
       throw new NotFoundException('Release or artifact not found');
     }
-    return { downloadUrl: `/api/v1/artifacts/file/${release.artifact.objectKey}` };
+    const url = await this.artifactService.getDownloadUrl(release.artifact);
+    return { downloadUrl: url };
   }
 
   private compareVersions(a: string, b: string): number {
