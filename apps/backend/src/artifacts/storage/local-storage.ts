@@ -35,4 +35,25 @@ export class LocalStorage extends ObjectStorage {
       fs.unlinkSync(filePath);
     }
   }
+
+  async composeParts(partKeys: string[], objectKey: string): Promise<void> {
+    const finalPath = this.getFilePath(objectKey);
+    fs.mkdirSync(path.dirname(finalPath), { recursive: true });
+    for (const key of partKeys) {
+      const partPath = this.getFilePath(key);
+      fs.appendFileSync(finalPath, fs.readFileSync(partPath));
+      fs.unlinkSync(partPath);
+    }
+    if (partKeys.length > 0) {
+      try {
+        fs.rmdirSync(path.dirname(this.getFilePath(partKeys[0])));
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  async getReadStream(key: string): Promise<NodeJS.ReadableStream> {
+    return fs.createReadStream(this.getFilePath(key));
+  }
 }
