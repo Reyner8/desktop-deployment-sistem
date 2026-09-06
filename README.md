@@ -99,6 +99,23 @@ Artifact disimpan di **MinIO** (production) atau **local filesystem** (fallback)
 
 Lihat [docs/docker-guide.md](docs/docker-guide.md) untuk konfigurasi storage.
 
+## CI/CD
+
+Backend menyediakan endpoint `/api/v1/ci/*` untuk pipeline GitHub Action
+dengan **chunked upload** yang mendukung file ratusan MB/GB — backend
+menjadi satu-satunya pihak yang menyentuh MinIO.
+
+```bash
+# Contoh curl cepat (coba manual)
+curl -X POST -H "x-api-key: dev-ci-key-change-in-production" \
+  -F "application=SIMRS" -F "version=9.9.0" -F "fileName=test.zip" \
+  -F "totalSize=1048576" -F "sha256=$(sha256sum test.zip | cut -d' ' -f1)" \
+  http://localhost:3000/api/v1/ci/uploads
+```
+
+Lihat [docs/ci-cd.md](docs/ci-cd.md) untuk panduan lengkap + template
+GitHub Actions workflow.
+
 ## API Documentation
 
 | Method | Endpoint | Deskripsi |
@@ -118,6 +135,12 @@ Lihat [docs/docker-guide.md](docs/docker-guide.md) untuk konfigurasi storage.
 | GET | `/api/v1/deployments` | List deployments |
 | GET | `/api/v1/deployments/:id` | Deployment detail |
 | GET | `/api/v1/audit` | Audit logs |
+| **POST** | **`/api/v1/ci/uploads`** | **Buka sesi chunked upload** |
+| **POST** | **`/api/v1/ci/uploads/:id/parts/:n`** | **Upload chunk (≤ 16MB)** |
+| **GET** | **`/api/v1/ci/uploads/:id`** | **Status sesi (resume)** |
+| **POST** | **`/api/v1/ci/uploads/:id/complete`** | **Finalisasi → PUBLISHED** |
+| **DELETE** | **`/api/v1/ci/uploads/:id`** | **Batalkan sesi** |
+| **GET** | **`/api/v1/ci/releases?application=&version=`** | **Cek duplikat** |
 | GET | `/health` | Health check |
 
 ## Deployment Lifecycle
@@ -126,6 +149,8 @@ Lihat [docs/docker-guide.md](docs/docker-guide.md) untuk konfigurasi storage.
 
 ```
 DRAFT → UPLOADING → VERIFYING → PUBLISHED
+                     ↑
+      (CI chunked: upload langsung ke VERIFYING)
                      ↓
                    FAILED
 ```
