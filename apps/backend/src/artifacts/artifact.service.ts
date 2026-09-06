@@ -61,6 +61,45 @@ export class ArtifactService {
     return saved;
   }
 
+  async registerForRelease(
+    releaseId: string,
+    meta: {
+      fileName: string;
+      objectKey: string;
+      size: number;
+      sha256: string;
+      mimeType: string;
+    },
+  ) {
+    const release = await this.releaseRepository.findOne({
+      where: { id: releaseId },
+      relations: ['artifact'],
+    });
+    if (!release) {
+      throw new NotFoundException('Release not found');
+    }
+    const storageDriver = this.configService.get('STORAGE_DRIVER') || 'local';
+
+    if (release.artifact) {
+      await this.storage.delete(release.artifact.objectKey);
+      await this.artifactRepository.remove(release.artifact);
+    }
+
+    const artifact = this.artifactRepository.create({
+      fileName: meta.fileName,
+      objectKey: meta.objectKey,
+      size: meta.size,
+      sha256: meta.sha256,
+      mimeType: meta.mimeType,
+      storageDriver,
+      release,
+    });
+
+    release.status = ReleaseStatus.VERIFYING;
+    await this.releaseRepository.save(release);
+    return this.artifactRepository.save(artifact);
+  }
+
   async getDownloadUrl(artifact: Artifact) {
     return this.storage.getSignedUrl(artifact.objectKey);
   }
