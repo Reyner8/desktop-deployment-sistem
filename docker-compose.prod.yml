@@ -47,6 +47,7 @@ services:
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      CI_API_KEY: ${CI_API_KEY}
       STORAGE_DRIVER: minio
       MINIO_ENDPOINT: minio
       MINIO_PORT: 9000
