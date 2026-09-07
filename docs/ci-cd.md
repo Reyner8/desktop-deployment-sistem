@@ -54,7 +54,7 @@ CI_API_KEY: ${CI_API_KEY}   # isi dari env host / GitHub Secrets
 | GET | `/api/v1/ci/uploads/:id` | Cek status & missing parts (resume) |
 | POST | `/api/v1/ci/uploads/:id/complete` | Finalisasi → PUBLISHED + downloadUrl |
 | DELETE | `/api/v1/ci/uploads/:id` | Batalkan sesi & hapus release |
-| GET | `/api/v1/ci/releases?application=&version=` | Cek apakah release sudah ada |
+| GET | `/api/v1/ci/releases?application=&version=&status=PUBLISHED` | Cek apakah release sudah di-publish |
 
 ### 3. Response `complete`
 
@@ -94,7 +94,6 @@ env:
   VERSION: ${GITHUB_REF_NAME#v}
   DEPLOYMENT_URL: ${{ secrets.DEPLOYMENT_URL }}
   DEPLOYMENT_CI_KEY: ${{ secrets.DEPLOYMENT_CI_KEY }}
-  CI_PART_SIZE: 16777216  # 16MB, harus sama dengan backend CI_PART_SIZE
 
 jobs:
   build-and-push:
@@ -135,7 +134,7 @@ jobs:
         run: |
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
             -H "x-api-key: ${{ env.DEPLOYMENT_CI_KEY }}" \
-            "${{ env.DEPLOYMENT_URL }}/api/v1/ci/releases?application=SIMRS&version=${{ env.VERSION }}")
+            "${{ env.DEPLOYMENT_URL }}/api/v1/ci/releases?application=SIMRS&version=${{ env.VERSION }}&status=PUBLISHED")
           if [ "$HTTP_CODE" = "200" ]; then
             echo "exists=true" >> $GITHUB_OUTPUT
           else
@@ -146,12 +145,9 @@ jobs:
         if: steps.check_release.outputs.exists != 'true'
         run: |
           FILE_SIZE=$(stat -c%s "simrs-${{ env.VERSION }}.zip")
-          PART_SIZE=${{ env.CI_PART_SIZE }}
-          TOTAL_PARTS=$(( (FILE_SIZE + PART_SIZE - 1) / PART_SIZE ))
 
-          echo "File: simrs-${{ env.VERSION }}.zip (${FILE_SIZE} bytes, ${TOTAL_PARTS} parts)"
-
-          # Start upload session
+          # Start upload session. Backend menentukan partSize (default 16MB,
+          # min 5MB) dan dikembalikan di respons supaya selaras selamanya.
           SESSION=$(curl -s -X POST \
             -H "x-api-key: ${{ env.DEPLOYMENT_CI_KEY }}" \
             -H "Content-Type: application/json" \
@@ -167,14 +163,36 @@ jobs:
 
           echo "Session response: $SESSION"
           UPLOAD_ID=$(echo $SESSION | jq -r '.data.uploadId')
-          echo "UPLOAD_ID=$UPLOAD_ID"
+          PART_SIZE=$(echo $SESSION | jq -r '.data.partSize // 16777216')
+          TOTAL_PARTS=$(echo $SESSION | jq -r '.data.totalParts // 1')
+          echo "UPLOAD_ID=$UPLOAD_ID PART_SIZE=$PART_SIZE TOTAL_PARTS=$TOTAL_PARTS"
 
-          # Split & upload each part
-          for PART_NUM in $(seq 1 $TOTAL_PARTS); do
+          # Resume: hanya upload part yang belum ada (missingParts).
+          # uploadedParts berisi nomor part yang sudah diterima backend.
+          MISSING=$(echo $SESSION | jq -r '.data.missingParts // [1] | .[]')
+          if [ -z "$MISSING" ]; then
+            echo "Semua ${TOTAL_PARTS} part sudah terupload."
+          fi
+
+          for PART_NUM in $MISSING; do
             SKIP=$(( (PART_NUM - 1) * PART_SIZE ))
             PART_FILE="part_${PART_NUM}"
+            # Banyak byte yang tersisa dari offset SKIP. Untuk part terakhir
+            # bisa kurang dari PART_SIZE.
+            REMAINING=$(( FILE_SIZE - SKIP ))
+            if [ $REMAINING -gt $PART_SIZE ]; then REMAINING=$PART_SIZE; fi
+            # dd dengan iflag=skip_bytes,count_bytes: skip & count dalam byte
+            # (bukan jumlah blok). Cepat karena bs besar (bukan bs=1), sekaligus
+            # aman untuk part terakhir yang lebih kecil dari PART_SIZE — dd
+            # membaca sampai EOF dan berhenti normal tanpa status error.
             dd if=simrs-${{ env.VERSION }}.zip of=$PART_FILE \
-              bs=1 skip=$SKIP count=$PART_SIZE 2>/dev/null
+              bs=$PART_SIZE skip=$SKIP count=$REMAINING \
+              iflag=skip_bytes,count_bytes 2>/dev/null || true
+            ACTUAL=$(stat -c%s "$PART_FILE" 2>/dev/null || echo 0)
+            if [ "$ACTUAL" -ne "$REMAINING" ]; then
+              echo "ERROR: Part ${PART_NUM} size ${ACTUAL}, expected ${REMAINING}."
+              exit 1
+            fi
 
             for ATTEMPT in 1 2 3; do
               HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
@@ -227,7 +245,7 @@ jobs:
           echo "Release ${{ env.VERSION }} already exists. Skipping upload."
           RELEASE=$(curl -s \
             -H "x-api-key: ${{ env.DEPLOYMENT_CI_KEY }}" \
-            "${{ env.DEPLOYMENT_URL }}/api/v1/ci/releases?application=SIMRS&version=${{ env.VERSION }}")
+            "${{ env.DEPLOYMENT_URL }}/api/v1/ci/releases?application=SIMRS&version=${{ env.VERSION }}&status=PUBLISHED")
           echo "Existing release: $RELEASE"
 ```
 
@@ -241,10 +259,17 @@ jobs:
 ### flow resume (jika workflow ter-interrupt)
 
 1. Rerun workflow yang sama.
-2. Backend akan mengembalikan sesi existing (status INITIATED) dengan
-   `uploadedParts[]` berisi part yang sudah terkirim.
-3. Hanya part yang belum ada (`missingParts[]`) yang perlu di-upload ulang.
-4. Jalankan `complete` kembali — otomatis selesaikan.
+2. Backend mengembalikan sesi existing (status `INITIATED`) beserta
+   `uploadedParts[]` dan `missingParts[]`.
+3. Workflow membaca `missingParts[]` dari respons `start()` dan **hanya
+   meng-upload part yang belum ada** — part yang sudah terkirim tidak
+   diulang.
+4. Setelah semua part lengkap, `complete` dijalankan kembali — release
+   menjadi `PUBLISHED` dan `downloadUrl` terbentuk.
+
+Catatan: jika release sudah `PUBLISHED`, step "Check if release already
+exists" (menggunakan `&status=PUBLISHED`) akan mendeteksinya dan
+melewati seluruh proses upload.
 
 ## Mode Manual (via Web UI)
 
@@ -263,6 +288,13 @@ Mode ini menggunakan endpoint yang sama namun dengan upload tunggal
 ### 401 "Invalid CI API key"
 - Pastikan `CI_API_KEY` di backend sama dengan `DEPLOYMENT_CI_KEY` di GitHub.
 - Header harus `x-api-key: <key>` (case-sensitive).
+
+### 413 Request Entity Too Large
+- Terjadi bila upload melewati reverse-proxy (Nginx) dan body chunk
+  melebihi `client_max_body_size`.
+- Pastikan Nginx di `infra/nginx/default.conf` menyetel
+  `client_max_body_size` ≥ ukuran part (default backend 16 MiB; contoh
+  yang dipakai: `20M`).
 
 ### 409 "Missing parts: ..."
 - Jalankan `GET /api/v1/ci/uploads/:id` untuk lihat mana part yang belum
