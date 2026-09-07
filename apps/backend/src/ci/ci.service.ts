@@ -140,6 +140,22 @@ export class CiService {
       );
     }
 
+    const totalParts = this.totalPartsOf(session);
+    for (const p of session.parts) {
+      const isLast = p.part === totalParts;
+      const maxSizeAllowed = isLast ? Number(session.partSize) : Number(session.partSize);
+      if (Number(p.size) > maxSizeAllowed) {
+        throw new BadRequestException(
+          `Part ${p.part} size ${p.size} exceeds partSize ${session.partSize}`,
+        );
+      }
+      if (!isLast && Number(p.size) !== Number(session.partSize)) {
+        throw new BadRequestException(
+          `Part ${p.part} size ${p.size} does not match partSize ${session.partSize} (non-final part must be full)`,
+        );
+      }
+    }
+
     session.status = UploadSessionStatus.COMPLETING;
     await this.sessionRepository.save(session);
 
