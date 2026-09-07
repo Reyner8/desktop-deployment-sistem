@@ -107,10 +107,16 @@ export class AgentService {
       }
     }
     const deployment = await this.deploymentRepository.findOne({
-      where: {
-        device: { deviceId },
-        status: DeploymentStatus.PENDING,
-      },
+      where: [
+        {
+          device: { deviceId },
+          status: DeploymentStatus.PENDING,
+        },
+        {
+          device: { deviceId },
+          status: DeploymentStatus.ASSIGNED,
+        },
+      ],
       relations: ['release'],
       order: { createdAt: 'ASC' },
     });
