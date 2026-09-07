@@ -39,20 +39,31 @@ export class CiService {
       relations: ['artifact'],
     });
     if (existing) {
-      const active = await this.sessionRepository.findOne({
-        where: {
-          application: dto.application,
-          version: dto.version,
-          status: UploadSessionStatus.INITIATED,
-        },
+      if (existing.status === ReleaseStatus.PUBLISHED) {
+        throw new ConflictException(
+          `Release ${dto.application} ${dto.version} is already published`,
+        );
+      }
+      const lastSession = await this.sessionRepository.findOne({
+        where: { application: dto.application, version: dto.version },
+        order: { createdAt: 'DESC' },
         relations: ['release'],
       });
-      if (active) {
-        return this.sessionResponse(active);
+      if (
+        lastSession &&
+        lastSession.status === UploadSessionStatus.INITIATED
+      ) {
+        return this.sessionResponse(lastSession);
       }
-      throw new ConflictException(
-        `Release ${dto.application} ${dto.version} already exists`,
-      );
+      if (lastSession && lastSession.status === UploadSessionStatus.COMPLETING) {
+        await this.storage.delete(lastSession.objectKey).catch(() => undefined);
+      }
+      if (lastSession) {
+        await this.cleanupParts(lastSession);
+        lastSession.status = UploadSessionStatus.FAILED;
+        await this.sessionRepository.save(lastSession);
+      }
+      return this.createSession(dto, existing);
     }
 
     const release = this.releaseRepository.create({
@@ -62,26 +73,7 @@ export class CiService {
       status: ReleaseStatus.DRAFT,
     });
     const savedRelease = await this.releaseRepository.save(release);
-
-    const ext = dto.fileName ? path.extname(dto.fileName) : '.zip';
-    const fileName = dto.fileName || `${dto.application}-${dto.version}${ext}`;
-    const objectKey = `${dto.application}/${dto.version}/${dto.version}${ext || '.zip'}`;
-
-    const session = this.sessionRepository.create({
-      application: dto.application,
-      version: dto.version,
-      fileName,
-      mimeType: dto.mimeType || 'application/zip',
-      totalSize: dto.totalSize,
-      sha256: dto.sha256,
-      partSize: CI_PART_SIZE,
-      objectKey,
-      parts: [],
-      status: UploadSessionStatus.INITIATED,
-      release: savedRelease,
-    });
-    const saved = await this.sessionRepository.save(session);
-    return this.sessionResponse(saved);
+    return this.createSession(dto, savedRelease);
   }
 
   async uploadPart(sessionId: string, partNumber: number, file: Express.Multer.File) {
@@ -190,6 +182,7 @@ export class CiService {
       if (err instanceof ConflictException) {
         throw err;
       }
+      await this.cleanupParts(session);
       await this.failSession(session);
       throw err;
     }
@@ -207,14 +200,15 @@ export class CiService {
     return { uploadId: sessionId, status: UploadSessionStatus.ABORTED };
   }
 
-  async findRelease(application: string, version: string) {
+  async findRelease(application: string, version: string, status?: string) {
     const release = await this.releaseService.findByApplicationVersion(
       application,
       version,
+      status,
     );
     if (!release) {
       throw new NotFoundException(
-        `Release ${application} ${version} not found`,
+        `Release ${application} ${version} not found${status ? ` with status ${status}` : ''}`,
       );
     }
     return release;
@@ -249,6 +243,36 @@ export class CiService {
 
   private partKeyFor(session: UploadSession, partNumber: number): string {
     return `${session.objectKey}.parts/${partNumber}`;
+  }
+
+  private async createSession(dto: CreateUploadDto, release: Release) {
+    const ext = dto.fileName ? path.extname(dto.fileName) : '.zip';
+    const fileName = dto.fileName || `${dto.application}-${dto.version}${ext}`;
+    const objectKey = `${dto.application}/${dto.version}/${dto.version}${ext || '.zip'}`;
+
+    const session = this.sessionRepository.create({
+      application: dto.application,
+      version: dto.version,
+      fileName,
+      mimeType: dto.mimeType || 'application/zip',
+      totalSize: dto.totalSize,
+      sha256: dto.sha256,
+      partSize: CI_PART_SIZE,
+      objectKey,
+      parts: [],
+      status: UploadSessionStatus.INITIATED,
+      release,
+    });
+    const saved = await this.sessionRepository.save(session);
+    return this.sessionResponse(saved);
+  }
+
+  private async cleanupParts(session: UploadSession): Promise<void> {
+    await Promise.allSettled(
+      session.parts.map((p) => this.storage.delete(this.partKeyFor(session, p.part))),
+    );
+    session.parts = [];
+    await this.sessionRepository.save(session);
   }
 
   private sessionResponse(session: UploadSession) {
