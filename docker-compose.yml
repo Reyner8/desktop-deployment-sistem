@@ -54,6 +54,7 @@ services:
       ADMIN_USERNAME: admin
       ADMIN_PASSWORD: admin123
       CI_API_KEY: dev-ci-key-change-in-production
+      CI_PART_SIZE: 16777216
       STORAGE_DRIVER: minio
       MINIO_ENDPOINT: minio
       MINIO_PORT: 9000
