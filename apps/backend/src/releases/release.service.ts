@@ -77,9 +77,13 @@ export class ReleaseService {
     return this.withDownloadUrl(release);
   }
 
-  async findByApplicationVersion(application: string, version: string) {
+  async findByApplicationVersion(application: string, version: string, status?: string) {
+    const where: any = { application, version };
+    if (status) {
+      where.status = status;
+    }
     const release = await this.releaseRepository.findOne({
-      where: { application, version },
+      where,
       relations: ['artifact'],
     });
     if (!release) {

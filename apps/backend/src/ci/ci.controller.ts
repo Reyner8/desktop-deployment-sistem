@@ -63,8 +63,9 @@ export class CiController {
   async findByVersion(
     @Query('application') application: string,
     @Query('version') version: string,
+    @Query('status') status?: string,
   ) {
-    const data = await this.ciService.findRelease(application, version);
+    const data = await this.ciService.findRelease(application, version, status);
     return { success: true, data };
   }
 }
