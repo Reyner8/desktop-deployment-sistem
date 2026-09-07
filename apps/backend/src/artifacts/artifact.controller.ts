@@ -11,13 +11,17 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { ArtifactService } from './artifact.service';
+import { ObjectStorage } from './storage/object-storage';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import * as fs from 'fs';
 
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class ArtifactController {
-  constructor(private readonly artifactService: ArtifactService) {}
+  constructor(
+    private readonly artifactService: ArtifactService,
+    private readonly storage: ObjectStorage,
+  ) {}
 
   @Post('releases/:releaseId/artifact')
   @UseInterceptors(FileInterceptor('file'))
@@ -48,7 +52,7 @@ export class ArtifactController {
     if (!artifact) {
       return res.status(404).json({ success: false, message: 'File not found' });
     }
-    const filePath = './uploads/artifacts/' + key;
+    const filePath = this.storage.getFilePath(key);
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ success: false, message: 'File not found' });
     }
