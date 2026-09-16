@@ -78,10 +78,6 @@ export class MinioStorage extends ObjectStorage implements OnModuleInit {
     return url;
   }
 
-  getFilePath(key: string): string {
-    throw new Error('MinIO storage does not support direct file paths');
-  }
-
   async delete(key: string): Promise<void> {
     await this.client.removeObject(this.bucket, key);
   }

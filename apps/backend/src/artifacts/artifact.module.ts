@@ -7,10 +7,11 @@ import { LocalStorage } from './storage/local-storage';
 import { MinioStorage } from './storage/minio-storage';
 import { Artifact } from './entities/artifact.entity';
 import { Release } from '../releases/entities/release.entity';
+import { AuditModule } from '../audit/audit.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Artifact, Release]), ConfigModule],
+  imports: [TypeOrmModule.forFeature([Artifact, Release]), ConfigModule, AuditModule],
   controllers: [ArtifactController],
   providers: [
     ArtifactService,

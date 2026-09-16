@@ -21,10 +21,6 @@ export class LocalStorage extends ObjectStorage {
     fs.writeFileSync(filePath, file.buffer);
   }
 
-  async getSignedUrl(key: string, expiresIn?: number): Promise<string> {
-    return `/api/v1/artifacts/file/${key}`;
-  }
-
   getFilePath(key: string): string {
     return path.join(this.uploadDir, 'artifacts', key);
   }

@@ -7,7 +7,8 @@ import * as path from 'path';
 import { Artifact } from './entities/artifact.entity';
 import { Release } from '../releases/entities/release.entity';
 import { ObjectStorage } from './storage/object-storage';
-import { ReleaseStatus } from '@rscb/shared';
+import { AuditService } from '../audit/audit.service';
+import { AuditAction, ReleaseStatus } from '@rscb/shared';
 
 @Injectable()
 export class ArtifactService {
@@ -18,9 +19,10 @@ export class ArtifactService {
     private readonly releaseRepository: Repository<Release>,
     private readonly storage: ObjectStorage,
     private readonly configService: ConfigService,
+    private readonly auditService: AuditService,
   ) {}
 
-  async uploadFile(releaseId: string, file: Express.Multer.File) {
+  async uploadFile(releaseId: string, file: Express.Multer.File, actor = 'system') {
     const release = await this.releaseRepository.findOne({
       where: { id: releaseId },
       relations: ['artifact'],
@@ -28,37 +30,61 @@ export class ArtifactService {
     if (!release) {
       throw new NotFoundException('Release not found');
     }
-    if (release.status !== ReleaseStatus.DRAFT) {
-      throw new BadRequestException('Can only upload artifact to DRAFT release');
+    if (release.status !== ReleaseStatus.DRAFT && release.status !== ReleaseStatus.FAILED) {
+      throw new BadRequestException('Can only upload artifact to DRAFT or FAILED release');
     }
 
     const sha256 = this.calculateSha256(file.buffer);
     const ext = path.extname(file.originalname);
     const objectKey = `${release.application}/${release.version}/${release.version}${ext}`;
 
-    await this.storage.upload(file, objectKey);
-
-    if (release.artifact) {
-      await this.storage.delete(release.artifact.objectKey);
-      await this.artifactRepository.remove(release.artifact);
-    }
-
-    const storageDriver = this.configService.get('STORAGE_DRIVER') || 'local';
-
-    const artifact = this.artifactRepository.create({
-      fileName: file.originalname,
-      objectKey,
-      size: file.size,
-      sha256,
-      mimeType: file.mimetype,
-      storageDriver,
-      release,
-    });
-
-    release.status = ReleaseStatus.VERIFYING;
+    release.status = ReleaseStatus.UPLOADING;
     await this.releaseRepository.save(release);
-    const saved = await this.artifactRepository.save(artifact);
-    return saved;
+
+    try {
+      await this.storage.upload(file, objectKey);
+
+      if (release.artifact) {
+        await this.storage.delete(release.artifact.objectKey);
+        await this.artifactRepository.remove(release.artifact);
+      }
+
+      const storageDriver = this.configService.get('STORAGE_DRIVER') || 'local';
+
+      const artifact = this.artifactRepository.create({
+        fileName: file.originalname,
+        objectKey,
+        size: file.size,
+        sha256,
+        mimeType: file.mimetype,
+        storageDriver,
+        release,
+      });
+
+      release.status = ReleaseStatus.VERIFYING;
+      await this.releaseRepository.save(release);
+
+      const saved = await this.artifactRepository.save(artifact);
+
+      await this.auditService.log({
+        actor,
+        action: AuditAction.ARTIFACT_UPLOADED,
+        target: 'ARTIFACT',
+        targetId: saved.id,
+        details: {
+          releaseId: release.id,
+          fileName: saved.fileName,
+          size: saved.size,
+          sha256: saved.sha256,
+        },
+        result: 'SUCCESS',
+      });
+      return saved;
+    } catch (err) {
+      release.status = ReleaseStatus.FAILED;
+      await this.releaseRepository.save(release);
+      throw err;
+    }
   }
 
   async registerForRelease(
@@ -70,6 +96,7 @@ export class ArtifactService {
       sha256: string;
       mimeType: string;
     },
+    actor = 'system',
   ) {
     const release = await this.releaseRepository.findOne({
       where: { id: releaseId },
@@ -97,18 +124,37 @@ export class ArtifactService {
 
     release.status = ReleaseStatus.VERIFYING;
     await this.releaseRepository.save(release);
-    return this.artifactRepository.save(artifact);
+    const saved = await this.artifactRepository.save(artifact);
+
+    await this.auditService.log({
+      actor,
+      action: AuditAction.ARTIFACT_UPLOADED,
+      target: 'ARTIFACT',
+      targetId: saved.id,
+      details: {
+        releaseId: release.id,
+        fileName: saved.fileName,
+        size: saved.size,
+        sha256: saved.sha256,
+      },
+      result: 'SUCCESS',
+    });
+    return saved;
   }
 
   async getDownloadUrl(artifact: Artifact) {
     return this.storage.getSignedUrl(artifact.objectKey);
   }
 
-  calculateSha256(buffer: Buffer): string {
-    return crypto.createHash('sha256').update(buffer).digest('hex');
+  async getReadStream(artifact: Artifact) {
+    return this.storage.getReadStream(artifact.objectKey);
   }
 
-  async findArtifactByKey(key: string): Promise<Artifact | null> {
-    return this.artifactRepository.findOne({ where: { objectKey: key } });
+  isLocalStorage(): boolean {
+    return (this.configService.get('STORAGE_DRIVER') || 'local') === 'local';
+  }
+
+  calculateSha256(buffer: Buffer): string {
+    return crypto.createHash('sha256').update(buffer).digest('hex');
   }
 }
