@@ -1,26 +1,34 @@
 import { useQuery } from '@tanstack/react-query';
+import type {
+  ApiResponse,
+  AuditLogEntry,
+  PaginatedResult,
+  PaginationQuery,
+} from '@rscb/shared';
+import { AuditAction } from '@rscb/shared';
 import api from '@/lib/api/axios';
 
-export interface AuditLog {
-  id: string;
-  actor: string;
-  action: string;
-  target: string;
-  result: string;
-  timestamp: string;
+export type { AuditLogEntry as AuditLog };
+
+export interface AuditQuery extends PaginationQuery {
+  actor?: string;
+  action?: AuditAction;
 }
 
-export function useAuditLogs(params?: { actor?: string; action?: string; page?: number; limit?: number }) {
+export function useAuditLogs(params?: AuditQuery) {
   return useQuery({
     queryKey: ['audit', params],
     queryFn: async () => {
-      const { data } = await api.get('/audit', { params });
-      const body = data.data as { data: any[]; total: number; page: number; limit: number };
+      const { data } = await api.get<ApiResponse<PaginatedResult<AuditLogEntry>>>('/audit', {
+        params,
+      });
+      const body = data.data!;
       return {
-        data: body.data || [],
+        data: body.data,
         total: body.total,
         page: body.page,
         limit: body.limit,
+        totalPages: body.totalPages,
       };
     },
   });
