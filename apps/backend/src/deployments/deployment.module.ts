@@ -6,9 +6,10 @@ import { Deployment } from './entities/deployment.entity';
 import { DeploymentEvent } from './entities/deployment-event.entity';
 import { Release } from '../releases/entities/release.entity';
 import { Device } from '../devices/entities/device.entity';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Deployment, DeploymentEvent, Release, Device])],
+  imports: [TypeOrmModule.forFeature([Deployment, DeploymentEvent, Release, Device]), AuditModule],
   controllers: [DeploymentController],
   providers: [DeploymentService],
 })

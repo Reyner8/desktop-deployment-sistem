@@ -22,6 +22,7 @@ import { AuditLog } from './audit/entities/audit-log.entity';
 import { UploadSession } from './ci/entities/upload-session.entity';
 import { CreateInitialSchema1720000000000 } from './database/migrations/1720000000000-CreateInitialSchema';
 import { AddUploadSessions1730000000000 } from './database/migrations/1730000000000-AddUploadSessions';
+import { AddArchivedReleaseStatus1740000000000 } from './database/migrations/1740000000000-AddArchivedReleaseStatus';
 
 @Module({
   imports: [
@@ -36,12 +37,23 @@ import { AddUploadSessions1730000000000 } from './database/migrations/1730000000
         type: 'postgres',
         url: config.get('DATABASE_URL'),
         entities: [
-          User, Device, DeviceNetwork, Release, Artifact,
-          Deployment, DeploymentEvent, AuditLog, UploadSession,
+          User,
+          Device,
+          DeviceNetwork,
+          Release,
+          Artifact,
+          Deployment,
+          DeploymentEvent,
+          AuditLog,
+          UploadSession,
         ],
         synchronize: false,
         migrationsRun: true,
-        migrations: [CreateInitialSchema1720000000000, AddUploadSessions1730000000000],
+        migrations: [
+          CreateInitialSchema1720000000000,
+          AddUploadSessions1730000000000,
+          AddArchivedReleaseStatus1740000000000,
+        ],
         logging: config.get('NODE_ENV') === 'development',
       }),
     }),

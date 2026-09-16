@@ -4,4 +4,5 @@ export enum ReleaseStatus {
   VERIFYING = 'VERIFYING',
   PUBLISHED = 'PUBLISHED',
   FAILED = 'FAILED',
+  ARCHIVED = 'ARCHIVED',
 }

@@ -1,16 +1,5 @@
 import { ReleaseStatus } from '../enums/release-status.enum';
 
-export interface ReleaseInfo {
-  id: string;
-  version: string;
-  application: string;
-  releaseNotes?: string;
-  status: ReleaseStatus;
-  createdAt: string;
-  publishedAt?: string;
-  artifact?: ArtifactInfo;
-}
-
 export interface ArtifactInfo {
   id: string;
   fileName: string;
@@ -18,5 +7,18 @@ export interface ArtifactInfo {
   size: number;
   sha256: string;
   mimeType: string;
+  storageDriver: string;
   createdAt: string;
+}
+
+export interface ReleaseInfo {
+  id: string;
+  application: string;
+  version: string;
+  releaseNotes?: string | null;
+  status: ReleaseStatus;
+  createdAt: string;
+  publishedAt?: string | null;
+  updatedAt: string;
+  artifact?: ArtifactInfo | null;
 }

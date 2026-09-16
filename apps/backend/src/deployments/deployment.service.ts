@@ -5,9 +5,10 @@ import { Deployment } from './entities/deployment.entity';
 import { DeploymentEvent } from './entities/deployment-event.entity';
 import { Release } from '../releases/entities/release.entity';
 import { Device } from '../devices/entities/device.entity';
+import { AuditService } from '../audit/audit.service';
 import { CreateDeploymentDto } from './dto/create-deployment.dto';
 import { QueryDeploymentDto } from './dto/query-deployment.dto';
-import { DeploymentStatus, deploymentTransitions } from '@rscb/shared';
+import { AuditAction, DeploymentStatus, ReleaseStatus, deploymentTransitions } from '@rscb/shared';
 
 @Injectable()
 export class DeploymentService {
@@ -20,12 +21,16 @@ export class DeploymentService {
     private readonly releaseRepository: Repository<Release>,
     @InjectRepository(Device)
     private readonly deviceRepository: Repository<Device>,
+    private readonly auditService: AuditService,
   ) {}
 
-  async create(dto: CreateDeploymentDto) {
+  async create(dto: CreateDeploymentDto, actor = 'system') {
     const release = await this.releaseRepository.findOne({ where: { id: dto.releaseId } });
     if (!release) {
       throw new NotFoundException('Release not found');
+    }
+    if (release.status !== ReleaseStatus.PUBLISHED) {
+      throw new BadRequestException('Can only deploy a PUBLISHED release');
     }
     const devices = await this.deviceRepository.find({
       where: { id: In(dto.deviceIds), isActive: true },
@@ -48,6 +53,19 @@ export class DeploymentService {
         message: 'Deployment created',
       });
       await this.eventRepository.save(event);
+      await this.auditService.log({
+        actor,
+        action: AuditAction.DEPLOYMENT_CREATED,
+        target: 'DEPLOYMENT',
+        targetId: saved.id,
+        details: {
+          releaseId: release.id,
+          releaseVersion: release.version,
+          deviceId: device.id,
+          hostname: device.hostname,
+        },
+        result: 'SUCCESS',
+      });
       deployments.push(saved);
     }
     return deployments;
@@ -97,13 +115,12 @@ export class DeploymentService {
     return deployment;
   }
 
-  async cancel(id: string) {
+  async cancel(id: string, actor = 'system') {
     const deployment = await this.findOne(id);
+    const previousStatus = deployment.status;
     const validNext = deploymentTransitions.get(deployment.status) || [];
     if (!validNext.includes(DeploymentStatus.CANCELLED)) {
-      throw new BadRequestException(
-        `Cannot cancel deployment in status ${deployment.status}`,
-      );
+      throw new BadRequestException(`Cannot cancel deployment in status ${deployment.status}`);
     }
     deployment.status = DeploymentStatus.CANCELLED;
     await this.deploymentRepository.save(deployment);
@@ -113,6 +130,14 @@ export class DeploymentService {
       message: 'Deployment cancelled by user',
     });
     await this.eventRepository.save(event);
+    await this.auditService.log({
+      actor,
+      action: AuditAction.DEPLOYMENT_CANCELLED,
+      target: 'DEPLOYMENT',
+      targetId: deployment.id,
+      details: { previousStatus },
+      result: 'SUCCESS',
+    });
     return deployment;
   }
 }

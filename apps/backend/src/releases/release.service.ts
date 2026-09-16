@@ -3,9 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like } from 'typeorm';
 import { Release } from './entities/release.entity';
 import { ArtifactService } from '../artifacts/artifact.service';
+import { AuditService } from '../audit/audit.service';
 import { CreateReleaseDto } from './dto/create-release.dto';
 import { QueryReleaseDto } from './dto/query-release.dto';
-import { ReleaseStatus, releaseTransitions } from '@rscb/shared';
+import { AuditAction, ReleaseStatus, releaseTransitions } from '@rscb/shared';
 
 @Injectable()
 export class ReleaseService {
@@ -13,9 +14,10 @@ export class ReleaseService {
     @InjectRepository(Release)
     private readonly releaseRepository: Repository<Release>,
     private readonly artifactService: ArtifactService,
+    private readonly auditService: AuditService,
   ) {}
 
-  async create(dto: CreateReleaseDto) {
+  async create(dto: CreateReleaseDto, actor = 'system') {
     const existing = await this.releaseRepository.findOne({
       where: { application: dto.application, version: dto.version },
     });
@@ -28,7 +30,16 @@ export class ReleaseService {
       releaseNotes: dto.releaseNotes,
       status: ReleaseStatus.DRAFT,
     });
-    return this.releaseRepository.save(release);
+    const saved = await this.releaseRepository.save(release);
+    await this.auditService.log({
+      actor,
+      action: AuditAction.RELEASE_CREATED,
+      target: 'RELEASE',
+      targetId: saved.id,
+      details: { application: saved.application, version: saved.version },
+      result: 'SUCCESS',
+    });
+    return saved;
   }
 
   async findAll(query: QueryReleaseDto) {
@@ -92,33 +103,51 @@ export class ReleaseService {
     return this.withDownloadUrl(release);
   }
 
-  async publish(id: string) {
+  async publish(id: string, actor = 'system') {
     const release = await this.findOne(id);
     const validNext = releaseTransitions.get(release.status) || [];
     if (!validNext.includes(ReleaseStatus.PUBLISHED)) {
-      throw new BadRequestException(
-        `Cannot publish release in status ${release.status}`,
-      );
+      throw new BadRequestException(`Cannot publish release in status ${release.status}`);
     }
     if (!release.artifact) {
       throw new BadRequestException('Cannot publish release without artifact');
     }
     release.status = ReleaseStatus.PUBLISHED;
     release.publishedAt = new Date();
-    return this.releaseRepository.save(release);
+    const saved = await this.releaseRepository.save(release);
+    await this.auditService.log({
+      actor,
+      action: AuditAction.RELEASE_PUBLISHED,
+      target: 'RELEASE',
+      targetId: saved.id,
+      details: { application: saved.application, version: saved.version },
+      result: 'SUCCESS',
+    });
+    return saved;
   }
 
-  async archive(id: string) {
+  async archive(id: string, actor = 'system') {
     const release = await this.findOne(id);
-    release.status = ReleaseStatus.PUBLISHED;
-    return this.releaseRepository.save(release);
+    const validNext = releaseTransitions.get(release.status) || [];
+    if (!validNext.includes(ReleaseStatus.ARCHIVED)) {
+      throw new BadRequestException(`Cannot archive release in status ${release.status}`);
+    }
+    release.status = ReleaseStatus.ARCHIVED;
+    const saved = await this.releaseRepository.save(release);
+    await this.auditService.log({
+      actor,
+      action: AuditAction.RELEASE_ARCHIVED,
+      target: 'RELEASE',
+      targetId: saved.id,
+      details: { application: saved.application, version: saved.version },
+      result: 'SUCCESS',
+    });
+    return saved;
   }
 
   private async withDownloadUrl(release: Release) {
     if (release.artifact) {
-      const downloadUrl = await this.artifactService.getDownloadUrl(
-        release.artifact,
-      );
+      const downloadUrl = await this.artifactService.getDownloadUrl(release.artifact);
       return { ...release, downloadUrl };
     }
     return { ...release, downloadUrl: null };

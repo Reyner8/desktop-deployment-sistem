@@ -1,14 +1,7 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Param,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { DeploymentService } from './deployment.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { CreateDeploymentDto } from './dto/create-deployment.dto';
 import { QueryDeploymentDto } from './dto/query-deployment.dto';
 
@@ -18,8 +11,8 @@ export class DeploymentController {
   constructor(private readonly deploymentService: DeploymentService) {}
 
   @Post()
-  async create(@Body() dto: CreateDeploymentDto) {
-    const data = await this.deploymentService.create(dto);
+  async create(@Body() dto: CreateDeploymentDto, @CurrentUser() user: any) {
+    const data = await this.deploymentService.create(dto, user?.username);
     return { success: true, data };
   }
 
@@ -36,8 +29,8 @@ export class DeploymentController {
   }
 
   @Post(':id/cancel')
-  async cancel(@Param('id') id: string) {
-    const data = await this.deploymentService.cancel(id);
+  async cancel(@Param('id') id: string, @CurrentUser() user: any) {
+    const data = await this.deploymentService.cancel(id, user?.username);
     return { success: true, data };
   }
 }
