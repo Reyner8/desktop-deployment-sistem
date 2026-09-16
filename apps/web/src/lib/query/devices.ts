@@ -1,4 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
+import type { ApiResponse, DeviceInfo, PaginatedResult, PaginationQuery } from '@rscb/shared';
+import { DeviceStatus } from '@rscb/shared';
 import api from '@/lib/api/axios';
 
 export interface Device {
@@ -10,10 +12,15 @@ export interface Device {
   agentVersion: string;
   applicationVersion: string;
   lastSeen: string;
-  status: string;
+  status: DeviceStatus;
 }
 
-export function mapDevice(raw: any): Device {
+export interface DeviceQuery extends PaginationQuery {
+  status?: DeviceStatus;
+  search?: string;
+}
+
+export function mapDevice(raw: DeviceInfo): Device {
   return {
     id: raw.id,
     deviceId: raw.deviceId,
@@ -27,17 +34,20 @@ export function mapDevice(raw: any): Device {
   };
 }
 
-export function useDevices(params?: { status?: string; search?: string; page?: number; limit?: number }) {
+export function useDevices(params?: DeviceQuery) {
   return useQuery({
     queryKey: ['devices', params],
     queryFn: async () => {
-      const { data } = await api.get('/devices', { params });
-      const body = data.data as { data: any[]; total: number; page: number; limit: number };
+      const { data } = await api.get<ApiResponse<PaginatedResult<DeviceInfo>>>('/devices', {
+        params,
+      });
+      const body = data.data!;
       return {
-        data: (body.data || []).map(mapDevice),
+        data: body.data.map(mapDevice),
         total: body.total,
         page: body.page,
         limit: body.limit,
+        totalPages: body.totalPages,
       };
     },
   });
@@ -47,9 +57,22 @@ export function useDevice(id: string) {
   return useQuery({
     queryKey: ['device', id],
     queryFn: async () => {
-      const { data } = await api.get(`/devices/${id}`);
-      return mapDevice(data.data);
+      const { data } = await api.get<ApiResponse<DeviceInfo>>(`/devices/${id}`);
+      return mapDevice(data.data!);
     },
     enabled: !!id,
+  });
+}
+
+export function usePendingUpdatesCount() {
+  return useQuery({
+    queryKey: ['devices', 'pending-updates', 'count'],
+    queryFn: async () => {
+      const { data } = await api.get<ApiResponse<PaginatedResult<DeviceInfo>>>('/devices', {
+        params: { status: DeviceStatus.UPDATE_AVAILABLE, limit: 1 },
+      });
+      return data.data?.total ?? 0;
+    },
+    refetchInterval: 30000,
   });
 }
