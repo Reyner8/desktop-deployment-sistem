@@ -47,13 +47,13 @@ docker compose up -d --build
 
 Ini akan menjalankan:
 
-| Service  | URL                          | Keterangan            |
-|----------|------------------------------|-----------------------|
-| Web      | http://localhost:8080        | Dashboard admin       |
-| Backend  | http://localhost:3000        | REST API              |
-| PostgreSQL | localhost:5432             | Database              |
-| MinIO    | http://localhost:9001        | Console (minioadmin)  |
-| MinIO API | http://localhost:9000       | S3-compatible API     |
+| Service    | URL                   | Keterangan           |
+| ---------- | --------------------- | -------------------- |
+| Web        | http://localhost:8080 | Dashboard admin      |
+| Backend    | http://localhost:3000 | REST API             |
+| PostgreSQL | localhost:5432        | Database             |
+| MinIO      | http://localhost:9001 | Console (minioadmin) |
+| MinIO API  | http://localhost:9000 | S3-compatible API    |
 
 ### 2. Login ke dashboard
 
@@ -118,51 +118,57 @@ GitHub Actions workflow.
 
 ## API Documentation
 
-| Method | Endpoint | Deskripsi |
-|--------|----------|-----------|
-| POST | `/api/v1/auth/login` | Login admin |
-| GET | `/api/v1/auth/me` | Current user |
-| POST | `/api/v1/agents/register` | Register agent |
-| POST | `/api/v1/agents/heartbeat` | Agent heartbeat |
-| GET | `/api/v1/agents/updates` | Check updates |
-| GET | `/api/v1/devices` | List devices |
-| GET | `/api/v1/devices/:id` | Device detail |
-| POST | `/api/v1/releases` | Create release |
-| GET | `/api/v1/releases` | List releases |
-| POST | `/api/v1/releases/:id/artifact` | Upload artifact |
-| POST | `/api/v1/releases/:id/publish` | Publish release |
-| POST | `/api/v1/deployments` | Create deployment |
-| GET | `/api/v1/deployments` | List deployments |
-| GET | `/api/v1/deployments/:id` | Deployment detail |
-| GET | `/api/v1/audit` | Audit logs |
-| **POST** | **`/api/v1/ci/uploads`** | **Buka sesi chunked upload** |
-| **POST** | **`/api/v1/ci/uploads/:id/parts/:n`** | **Upload chunk (≤ 16MB)** |
-| **GET** | **`/api/v1/ci/uploads/:id`** | **Status sesi (resume)** |
-| **POST** | **`/api/v1/ci/uploads/:id/complete`** | **Finalisasi → PUBLISHED** |
-| **DELETE** | **`/api/v1/ci/uploads/:id`** | **Batalkan sesi** |
-| **GET** | **`/api/v1/ci/releases?application=&version=`** | **Cek duplikat** |
-| GET | `/health` | Health check |
+| Method     | Endpoint                                           | Deskripsi                         |
+| ---------- | -------------------------------------------------- | --------------------------------- |
+| POST       | `/api/v1/auth/login`                               | Login admin                       |
+| GET        | `/api/v1/auth/me`                                  | Current user                      |
+| POST       | `/api/v1/agents/register`                          | Register agent                    |
+| POST       | `/api/v1/agents/heartbeat`                         | Agent heartbeat                   |
+| GET        | `/api/v1/agents/updates`                           | Check updates                     |
+| POST       | `/api/v1/agents/deployments/:id/status`            | Agent lapor status deployment     |
+| GET        | `/api/v1/agents/artifacts/:releaseId/download-url` | URL download artifact untuk agent |
+| GET        | `/api/v1/agents/artifacts/:releaseId/file`         | Stream artifact (storage lokal)   |
+| GET        | `/api/v1/devices`                                  | List devices                      |
+| GET        | `/api/v1/devices/:id`                              | Device detail                     |
+| POST       | `/api/v1/releases`                                 | Create release                    |
+| GET        | `/api/v1/releases`                                 | List releases                     |
+| POST       | `/api/v1/releases/:id/artifact`                    | Upload artifact                   |
+| POST       | `/api/v1/releases/:id/publish`                     | Publish release                   |
+| POST       | `/api/v1/releases/:id/archive`                     | Archive release                   |
+| POST       | `/api/v1/deployments`                              | Create deployment                 |
+| GET        | `/api/v1/deployments`                              | List deployments                  |
+| GET        | `/api/v1/deployments/:id`                          | Deployment detail                 |
+| POST       | `/api/v1/deployments/:id/cancel`                   | Cancel deployment                 |
+| GET        | `/api/v1/audit`                                    | Audit logs                        |
+| **POST**   | **`/api/v1/ci/uploads`**                           | **Buka sesi chunked upload**      |
+| **POST**   | **`/api/v1/ci/uploads/:id/parts/:n`**              | **Upload chunk (≤ 16MB)**         |
+| **GET**    | **`/api/v1/ci/uploads/:id`**                       | **Status sesi (resume)**          |
+| **POST**   | **`/api/v1/ci/uploads/:id/complete`**              | **Finalisasi → PUBLISHED**        |
+| **DELETE** | **`/api/v1/ci/uploads/:id`**                       | **Batalkan sesi**                 |
+| **GET**    | **`/api/v1/ci/releases?application=&version=`**    | **Cek duplikat**                  |
+| GET        | `/api/v1/health`                                   | Health check                      |
+| GET        | `/api/v1/health/ready`                             | Health check + database           |
 
 ## Deployment Lifecycle
 
 ### Release State Machine
 
 ```
-DRAFT → UPLOADING → VERIFYING → PUBLISHED
+DRAFT → UPLOADING → VERIFYING → PUBLISHED → ARCHIVED
                      ↑
       (CI chunked: upload langsung ke VERIFYING)
                      ↓
-                   FAILED
+                   FAILED → UPLOADING (retry)
 ```
 
 ### Deployment State Machine
 
 ```
 PENDING → ASSIGNED → DOWNLOADING → VERIFYING → INSTALLING → STARTING → SUCCESS
-                       ↓              ↓           ↓
-                     FAILED          FAILED      FAILED
-                       ↓
-                     CANCELLED
+   ↓         ↓            ↓              ↓           ↓
+CANCELLED  CANCELLED    FAILED         FAILED      FAILED
+                           ↓
+                        CANCELLED
 ```
 
 ## Development Commands

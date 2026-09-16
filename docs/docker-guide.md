@@ -10,35 +10,35 @@ docker compose up -d --build
 
 ### Service Overview
 
-| Service    | Container        | Port   | Healthcheck              |
-|-----------|------------------|--------|--------------------------|
-| postgres  | rscb-postgres    | 5432   | pg_isready               |
-| minio     | rscb-minio       | 9000/9001 | /minio/health/live    |
-| backend   | rscb-backend     | 3000   | depends_on service_healthy |
-| web       | rscb-web         | 8080   | —                        |
+| Service  | Container     | Port      | Healthcheck                |
+| -------- | ------------- | --------- | -------------------------- |
+| postgres | rscb-postgres | 5432      | pg_isready                 |
+| minio    | rscb-minio    | 9000/9001 | /minio/health/live         |
+| backend  | rscb-backend  | 3000      | depends_on service_healthy |
+| web      | rscb-web      | 8080      | —                          |
 
 ### Credentials
 
-| Service    | Username   | Password       | Database/Console |
-|-----------|-----------|---------------|-----------------|
-| PostgreSQL | postgres  | Tigerlake.85  | rscb_deployment |
-| MinIO      | minioadmin | minioadmin    | rscb-artifacts  |
-| Admin      | admin     | admin123      | Dashboard login |
+| Service    | Username   | Password     | Database/Console |
+| ---------- | ---------- | ------------ | ---------------- |
+| PostgreSQL | postgres   | Tigerlake.85 | rscb_deployment  |
+| MinIO      | minioadmin | minioadmin   | rscb-artifacts   |
+| Admin      | admin      | admin123     | Dashboard login  |
 
 ### Akses
 
 - **Dashboard**: http://localhost:8080
 - **API**: http://localhost:3000/api/v1
 - **MinIO Console**: http://localhost:9001
-- **Health**: http://localhost:3000/health
+- **Health**: http://localhost:3000/api/v1/health
 
 ## Volumes
 
-| Volume        | Keterangan                  |
-|--------------|-----------------------------|
-| postgres-data | Data PostgreSQL persisten   |
-| minio-data   | Object artifact persisten   |
-| uploads      | Local upload (fallback)     |
+| Volume        | Keterangan                |
+| ------------- | ------------------------- |
+| postgres-data | Data PostgreSQL persisten |
+| minio-data    | Object artifact persisten |
+| uploads       | Local upload (fallback)   |
 
 ### Reset Semua Data
 
@@ -48,6 +48,19 @@ docker compose up -d --build
 ```
 
 Skema database dibuat ulang otomatis oleh TypeORM migrations.
+
+## Batas Upload Artifact
+
+- **Manual (dashboard)**: request melewati nginx `client_max_body_size 20M`
+  dan diproses backend sebagai buffer di memori. Artifact besar sebaiknya
+  tidak di-upload manual.
+- **CI/CD (direkomendasikan untuk artifact besar)**: menggunakan chunked
+  upload (`/api/v1/ci/uploads`) dengan ukuran part default 16 MiB
+  (`CI_PART_SIZE`), sehingga tiap request berada di bawah batas nginx dan
+  dapat di-resume.
+- Untuk menaikkan batas manual, ubah `client_max_body_size` pada
+  `infra/nginx/default.conf` (dev) atau konfigurasi reverse proxy host
+  (production), lalu sesuaikan juga batas penyimpanan sementara backend.
 
 ## Production
 
@@ -67,6 +80,7 @@ ADMIN_PASSWORD=<strong-password>
 MINIO_ROOT_USER=minioadmin
 MINIO_ROOT_PASSWORD=<strong-password>
 MINIO_PUBLIC_URL=https://minio.example.com
+CI_API_KEY=<strong-ci-key>
 ```
 
 ### 2. Jalankan
@@ -77,7 +91,10 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 ### 3. Reverse Proxy (Nginx)
 
-Gunakan nginx sebagai reverse proxy untuk production:
+Catatan: reverse proxy **tidak dijalankan sebagai service di
+`docker-compose.prod.yml`**. Nginx untuk TLS/domain production dipasang di
+host (atau container terpisah) dan meneruskan request ke port web/backend.
+Gunakan konfigurasi berikut sebagai contoh:
 
 ```nginx
 server {
@@ -130,6 +147,7 @@ docker exec rscb-postgres psql -U postgres -d rscb_deployment -c '\dt'
 ```
 
 Jika kosong, cek log backend untuk migration errors. Reset volume:
+
 ```bash
 docker compose down -v
 docker compose up -d postgres
@@ -139,6 +157,7 @@ docker compose up -d backend
 ### MinIO bucket tidak ada
 
 Backend membuat bucket otomatis saat startup. Cek log:
+
 ```bash
 docker compose logs backend | grep bucket
 ```

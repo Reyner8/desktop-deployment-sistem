@@ -39,22 +39,22 @@ Backend satu-satunya yang mengelola bucket. GitHub hanya perlu
 
 ```bash
 # docker-compose.yml (dev)
-CI_API_KEY: my-super-secret-ci-key-change-me
+CI_API_KEY: dev-ci-key-change-in-production
 
 # docker-compose.prod.yml (production)
-CI_API_KEY: ${CI_API_KEY}   # isi dari env host / GitHub Secrets
+CI_API_KEY: ${CI_API_KEY}   # isi dari root .env / GitHub Secrets
 ```
 
 ### 2. Endpoint CI (semua butuh header `x-api-key`)
 
-| Method | Path | Fungsi |
-|--------|------|--------|
-| POST | `/api/v1/ci/uploads` | Buka sesi upload + buat release DRAFT |
-| POST | `/api/v1/ci/uploads/:id/parts/:partNumber` | Kirim chunk (≤ 16MB) |
-| GET | `/api/v1/ci/uploads/:id` | Cek status & missing parts (resume) |
-| POST | `/api/v1/ci/uploads/:id/complete` | Finalisasi → PUBLISHED + downloadUrl |
-| DELETE | `/api/v1/ci/uploads/:id` | Batalkan sesi & hapus release |
-| GET | `/api/v1/ci/releases?application=&version=&status=PUBLISHED` | Cek apakah release sudah di-publish |
+| Method | Path                                                         | Fungsi                                |
+| ------ | ------------------------------------------------------------ | ------------------------------------- |
+| POST   | `/api/v1/ci/uploads`                                         | Buka sesi upload + buat release DRAFT |
+| POST   | `/api/v1/ci/uploads/:id/parts/:partNumber`                   | Kirim chunk (≤ 16MB)                  |
+| GET    | `/api/v1/ci/uploads/:id`                                     | Cek status & missing parts (resume)   |
+| POST   | `/api/v1/ci/uploads/:id/complete`                            | Finalisasi → PUBLISHED + downloadUrl  |
+| DELETE | `/api/v1/ci/uploads/:id`                                     | Batalkan sesi & hapus release         |
+| GET    | `/api/v1/ci/releases?application=&version=&status=PUBLISHED` | Cek apakah release sudah di-publish   |
 
 ### 3. Response `complete`
 
@@ -251,10 +251,10 @@ jobs:
 
 ### GitHub Secrets yang diperlukan
 
-| Secret | Contoh | Keterangan |
-|--------|--------|------------|
-| `DEPLOYMENT_URL` | `https://deploy.rscb.example.com` | Base URL backend |
-| `DEPLOYMENT_CI_KEY` | `my-super-secret-ci-key` | Harus sama dengan CI_API_KEY di backend |
+| Secret              | Contoh                            | Keterangan                              |
+| ------------------- | --------------------------------- | --------------------------------------- |
+| `DEPLOYMENT_URL`    | `https://deploy.rscb.example.com` | Base URL backend                        |
+| `DEPLOYMENT_CI_KEY` | `my-super-secret-ci-key`          | Harus sama dengan CI_API_KEY di backend |
 
 ### flow resume (jika workflow ter-interrupt)
 
@@ -279,6 +279,7 @@ Admin juga bisa membuat release dan deploy manual dari dashboard admin
 
 Mode ini menggunakan endpoint yang sama namun dengan upload tunggal
 (bukan chunked). Berguna untuk:
+
 - Testing
 - Hotfix darurat tanpa CI pipeline
 - Versi internal yang tidak di-publish ke GitHub
@@ -286,10 +287,12 @@ Mode ini menggunakan endpoint yang sama namun dengan upload tunggal
 ## Troubleshooting
 
 ### 401 "Invalid CI API key"
+
 - Pastikan `CI_API_KEY` di backend sama dengan `DEPLOYMENT_CI_KEY` di GitHub.
 - Header harus `x-api-key: <key>` (case-sensitive).
 
 ### 413 Request Entity Too Large
+
 - Terjadi bila upload melewati reverse-proxy (Nginx) dan body chunk
   melebihi `client_max_body_size`.
 - Pastikan Nginx di `infra/nginx/default.conf` menyetel
@@ -297,15 +300,18 @@ Mode ini menggunakan endpoint yang sama namun dengan upload tunggal
   yang dipakai: `20M`).
 
 ### 409 "Missing parts: ..."
+
 - Jalankan `GET /api/v1/ci/uploads/:id` untuk lihat mana part yang belum
   terkirim.
 - Upload ulang part tersebut.
 
 ### 409 "SHA-256 mismatch"
+
 - File ZIP di GitHub berubah setelah dihitung SHA-256.
 - Build harus deterministik; pastikan tidak ada intermediate file yang
   mengubah artefak.
 
 ### 409 "Release version already exists"
+
 - Tag yang sama sudah di-publish sebelumnya.
 - Gunakan versi baru (tag baru) untuk artifact berbeda.
