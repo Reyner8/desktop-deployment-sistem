@@ -8,11 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as crypto from 'crypto';
 import * as path from 'path';
-import {
-  UploadSession,
-  UploadSessionStatus,
-  UploadedPart,
-} from './entities/upload-session.entity';
+import { UploadSession, UploadSessionStatus } from './entities/upload-session.entity';
 import { CreateUploadDto } from './dto/create-upload.dto';
 import { CI_PART_SIZE } from './ci.constants';
 import { Release } from '../releases/entities/release.entity';
@@ -44,15 +40,17 @@ export class CiService {
           `Release ${dto.application} ${dto.version} is already published`,
         );
       }
+      if (existing.status === ReleaseStatus.ARCHIVED) {
+        throw new ConflictException(
+          `Release ${dto.application} ${dto.version} is archived`,
+        );
+      }
       const lastSession = await this.sessionRepository.findOne({
         where: { application: dto.application, version: dto.version },
         order: { createdAt: 'DESC' },
         relations: ['release'],
       });
-      if (
-        lastSession &&
-        lastSession.status === UploadSessionStatus.INITIATED
-      ) {
+      if (lastSession && lastSession.status === UploadSessionStatus.INITIATED) {
         return this.sessionResponse(lastSession);
       }
       if (lastSession && lastSession.status === UploadSessionStatus.COMPLETING) {
@@ -79,9 +77,7 @@ export class CiService {
   async uploadPart(sessionId: string, partNumber: number, file: Express.Multer.File) {
     const session = await this.getSession(sessionId);
     if (session.status !== UploadSessionStatus.INITIATED) {
-      throw new BadRequestException(
-        `Cannot upload part in session status ${session.status}`,
-      );
+      throw new BadRequestException(`Cannot upload part in session status ${session.status}`);
     }
     if (!file) {
       throw new BadRequestException('Chunk file is required (field "file")');
@@ -120,9 +116,7 @@ export class CiService {
       return this.releaseWithUrl(release);
     }
     if (session.status !== UploadSessionStatus.INITIATED) {
-      throw new BadRequestException(
-        `Cannot complete session in status ${session.status}`,
-      );
+      throw new BadRequestException(`Cannot complete session in status ${session.status}`);
     }
 
     const missing = this.missingParts(session);
@@ -167,6 +161,7 @@ export class CiService {
 
       if (size !== expectedSize) {
         await this.storage.delete(session.objectKey);
+        await this.cleanupParts(session);
         await this.failSession(session);
         throw new ConflictException(
           `Composed object size ${size} does not match expected ${expectedSize}`,
@@ -174,20 +169,25 @@ export class CiService {
       }
       if (session.sha256 && sha256 !== session.sha256) {
         await this.storage.delete(session.objectKey);
+        await this.cleanupParts(session);
         await this.failSession(session);
         throw new ConflictException(
           `SHA-256 mismatch: expected ${session.sha256}, computed ${sha256}`,
         );
       }
 
-      await this.artifactService.registerForRelease(session.release.id, {
-        fileName: session.fileName,
-        objectKey: session.objectKey,
-        size,
-        sha256,
-        mimeType: session.mimeType,
-      });
-      await this.releaseService.publish(session.release.id);
+      await this.artifactService.registerForRelease(
+        session.release.id,
+        {
+          fileName: session.fileName,
+          objectKey: session.objectKey,
+          size,
+          sha256,
+          mimeType: session.mimeType,
+        },
+        'ci',
+      );
+      await this.releaseService.publish(session.release.id, 'ci');
 
       session.status = UploadSessionStatus.COMPLETED;
       await this.sessionRepository.save(session);
@@ -313,9 +313,7 @@ export class CiService {
 
   private async releaseWithUrl(release: Release) {
     if (release.artifact) {
-      const downloadUrl = await this.artifactService.getDownloadUrl(
-        release.artifact,
-      );
+      const downloadUrl = await this.artifactService.getDownloadUrl(release.artifact);
       return { ...release, downloadUrl };
     }
     return { ...release, downloadUrl: null };
