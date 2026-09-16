@@ -1,23 +1,27 @@
 import { DeviceStatus } from '../enums/device-status.enum';
 
+export interface DeviceNetworkInfo {
+  id: string;
+  ipAddress: string;
+}
+
 export interface DeviceInfo {
+  id: string;
   deviceId: string;
   hostname: string;
-  ipAddress: string[];
-  os: string;
+  os: string | null;
   agentVersion: string;
   applicationVersion: string | null;
-  lastSeen: string;
   status: DeviceStatus;
+  lastSeen: string;
+  networks?: DeviceNetworkInfo[];
   createdAt: string;
   updatedAt: string;
 }
 
 export interface DeviceHeartbeat {
-  deviceId: string;
   hostname: string;
-  ipAddress: string[];
-  applicationVersion: string | null;
+  ipAddress?: string[];
+  applicationVersion?: string | null;
   agentVersion: string;
-  timestamp: string;
 }
