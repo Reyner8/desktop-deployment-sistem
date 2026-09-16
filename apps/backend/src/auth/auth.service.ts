@@ -45,17 +45,25 @@ export class AuthService {
       username,
       password: hashedPassword,
       displayName: displayName || username,
+      isActive: true,
     });
     return this.userRepository.save(user);
   }
 
-  async findByUsername(username: string): Promise<User | null> {
-    return this.userRepository.findOne({ where: { username } });
+  async getProfile(id: string): Promise<User> {
+    const user = await this.userRepository.findOne({ where: { id } });
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('User not found or inactive');
+    }
+    return user;
   }
 
   async seedAdmin(): Promise<void> {
     const username = this.configService.get('ADMIN_USERNAME') || 'admin';
-    const password = this.configService.get('ADMIN_PASSWORD') || 'admin123';
+    const password = this.configService.get('ADMIN_PASSWORD');
+    if (!password) {
+      throw new Error('ADMIN_PASSWORD must be set to seed the admin user');
+    }
     const existing = await this.userRepository.findOne({ where: { username } });
     if (!existing) {
       const salt = await bcrypt.genSalt(10);
