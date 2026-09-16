@@ -1,26 +1,53 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { DeviceStatus } from '@rscb/shared';
 import { useDevices } from '@/lib/query/devices';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '@/components/ui/table';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PaginationBar } from '@/components/ui/pagination-bar';
+import { ErrorState } from '@/components/ui/error-state';
 import { Eye, Monitor, Search } from 'lucide-react';
 
-const statusOptions = ['ALL', 'ONLINE', 'OFFLINE', 'UPDATE_AVAILABLE', 'ERROR'];
+const statusOptions: Array<'ALL' | DeviceStatus> = [
+  'ALL',
+  DeviceStatus.ONLINE,
+  DeviceStatus.OFFLINE,
+  DeviceStatus.UPDATE_AVAILABLE,
+  DeviceStatus.UPDATING,
+  DeviceStatus.ERROR,
+];
 
 export function DevicesPage() {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL');
-  const { data, isLoading } = useDevices({
-    status: statusFilter === 'ALL' ? undefined : statusFilter,
+  const [searchParams, setSearchParams] = useSearchParams();
+  const statusFilter = searchParams.get('status') || 'ALL';
+  const setStatusFilter = (value: string) => {
+    setSearchParams(value === 'ALL' ? {} : { status: value }, { replace: true });
+    setPage(1);
+  };
+  const { data, isLoading, isError, refetch } = useDevices({
+    status: statusFilter === 'ALL' ? undefined : (statusFilter as DeviceStatus),
     search: search || undefined,
     page,
     limit,
@@ -36,17 +63,22 @@ export function DevicesPage() {
             <Input
               placeholder="Search hostname..."
               value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
               className="pl-8 w-60"
             />
           </div>
-          <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-36">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {statusOptions.map((s) => (
-                <SelectItem key={s} value={s}>{s === 'ALL' ? 'All Status' : s}</SelectItem>
+                <SelectItem key={s} value={s}>
+                  {s === 'ALL' ? 'All Status' : s}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -55,53 +87,70 @@ export function DevicesPage() {
 
       <Card>
         <CardContent className="pt-6">
-          <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Device</TableHead>
-            <TableHead>IP Address</TableHead>
-            <TableHead>SIMRS Version</TableHead>
-            <TableHead>Agent Version</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Last Seen</TableHead>
-            <TableHead className="text-right">Action</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {isLoading ? (
-            Array.from({ length: 8 }).map((_, i) => (
-              <TableRow key={i}>
-                {Array.from({ length: 7 }).map((_, j) => (
-                  <TableCell key={j}><Skeleton className="h-5 w-20" /></TableCell>
-                ))}
-              </TableRow>
-            ))
-          ) : data?.data?.length ? (
-            data.data.map((device) => (
-              <TableRow key={device.id}>
-                <TableCell className="font-medium">{device.hostname}</TableCell>
-                <TableCell>{device.ipAddress}</TableCell>
-                <TableCell>{device.applicationVersion || '-'}</TableCell>
-                <TableCell>{device.agentVersion}</TableCell>
-                <TableCell><StatusBadge status={device.status} /></TableCell>
-                <TableCell>{new Date(device.lastSeen).toLocaleString()}</TableCell>
-                <TableCell className="text-right">
-                  <Button variant="ghost" size="sm" onClick={() => navigate(`/devices/${device.id}`)}>
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))
+          {isError ? (
+            <ErrorState
+              title="Unable to load devices"
+              message="The deployment server could not be reached."
+              onRetry={() => refetch()}
+            />
           ) : (
-            <TableRow>
-              <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                <Monitor className="mx-auto h-8 w-8 mb-2" />
-                No devices found
-              </TableCell>
-            </TableRow>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Device</TableHead>
+                  <TableHead>IP Address</TableHead>
+                  <TableHead>SIMRS Version</TableHead>
+                  <TableHead>Agent Version</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Last Seen</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  Array.from({ length: 8 }).map((_, i) => (
+                    <TableRow key={i}>
+                      {Array.from({ length: 7 }).map((_, j) => (
+                        <TableCell key={j}>
+                          <Skeleton className="h-5 w-20" />
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : data?.data?.length ? (
+                  data.data.map((device) => (
+                    <TableRow key={device.id}>
+                      <TableCell className="font-medium">{device.hostname}</TableCell>
+                      <TableCell>{device.ipAddress}</TableCell>
+                      <TableCell>{device.applicationVersion || '-'}</TableCell>
+                      <TableCell>{device.agentVersion}</TableCell>
+                      <TableCell>
+                        <StatusBadge status={device.status} />
+                      </TableCell>
+                      <TableCell>{new Date(device.lastSeen).toLocaleString()}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Lihat detail ${device.hostname}`}
+                          onClick={() => navigate(`/devices/${device.id}`)}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                      <Monitor className="mx-auto h-8 w-8 mb-2" />
+                      No devices found
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
           )}
-        </TableBody>
-      </Table>
         </CardContent>
       </Card>
 

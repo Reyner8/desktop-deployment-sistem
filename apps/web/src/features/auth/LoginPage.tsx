@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -6,10 +5,17 @@ import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { useAuthStore } from '@/stores/auth-store';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { useLogin } from '@/lib/query/auth';
 import { toast } from '@/stores/toast-store';
-import api from '@/lib/api/axios';
+import { getErrorMessage } from '@/lib/api/axios';
 import { LogIn } from 'lucide-react';
 
 const loginSchema = z.object({
@@ -21,24 +27,23 @@ type LoginForm = z.infer<typeof loginSchema>;
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const setAuth = useAuthStore((s) => s.setAuth);
-  const [loading, setLoading] = useState(false);
+  const login = useLogin();
   const form = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
     defaultValues: { username: '', password: '' },
   });
 
   const onSubmit = async (values: LoginForm) => {
-    setLoading(true);
     try {
-      const { data } = await api.post('/auth/login', values);
-      setAuth(data.token, data.user);
+      await login.mutateAsync(values);
       toast({ title: 'Login successful', variant: 'success' });
       navigate('/dashboard');
-    } catch {
-      toast({ title: 'Login failed', description: 'Invalid credentials', variant: 'destructive' });
-    } finally {
-      setLoading(false);
+    } catch (error) {
+      toast({
+        title: 'Login failed',
+        description: getErrorMessage(error),
+        variant: 'destructive',
+      });
     }
   };
 
@@ -78,9 +83,9 @@ export function LoginPage() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full" disabled={loading}>
+              <Button type="submit" className="w-full" disabled={login.isPending}>
                 <LogIn className="mr-2 h-4 w-4" />
-                {loading ? 'Signing in...' : 'Sign In'}
+                {login.isPending ? 'Signing in...' : 'Sign In'}
               </Button>
             </form>
           </Form>

@@ -2,17 +2,25 @@ import { useState } from 'react';
 import { useAuditLogs } from '@/lib/query/audit';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PaginationBar } from '@/components/ui/pagination-bar';
+import { ErrorState } from '@/components/ui/error-state';
 import { ScrollText, Search } from 'lucide-react';
 
 export function AuditPage() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
   const [actorFilter, setActorFilter] = useState('');
-  const { data, isLoading } = useAuditLogs({
+  const { data, isLoading, isError, refetch } = useAuditLogs({
     actor: actorFilter || undefined,
     page,
     limit,
@@ -27,7 +35,10 @@ export function AuditPage() {
           <Input
             placeholder="Filter by actor..."
             value={actorFilter}
-            onChange={(e) => { setActorFilter(e.target.value); setPage(1); }}
+            onChange={(e) => {
+              setActorFilter(e.target.value);
+              setPage(1);
+            }}
             className="pl-8 w-60"
           />
         </div>
@@ -35,53 +46,65 @@ export function AuditPage() {
 
       <Card>
         <CardContent className="pt-6">
-          <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Actor</TableHead>
-            <TableHead>Action</TableHead>
-            <TableHead>Target</TableHead>
-            <TableHead>Result</TableHead>
-            <TableHead>Timestamp</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {isLoading ? (
-            Array.from({ length: 8 }).map((_, i) => (
-              <TableRow key={i}>
-                {Array.from({ length: 5 }).map((_, j) => (
-                  <TableCell key={j}><Skeleton className="h-5 w-20" /></TableCell>
-                ))}
-              </TableRow>
-            ))
-          ) : data?.data?.length ? (
-            data.data.map((log) => (
-              <TableRow key={log.id}>
-                <TableCell className="font-medium">{log.actor}</TableCell>
-                <TableCell>
-                  <span className="capitalize">{log.action.replace(/_/g, ' ').toLowerCase()}</span>
-                </TableCell>
-                <TableCell className="text-muted-foreground">{log.target}</TableCell>
-                <TableCell>
-                  <Badge variant={log.result === 'SUCCESS' ? 'success' : 'destructive'}>
-                    {log.result}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {new Date(log.timestamp).toLocaleString()}
-                </TableCell>
-              </TableRow>
-            ))
+          {isError ? (
+            <ErrorState
+              title="Unable to load audit logs"
+              message="The deployment server could not be reached."
+              onRetry={() => refetch()}
+            />
           ) : (
-            <TableRow>
-              <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                <ScrollText className="mx-auto h-8 w-8 mb-2" />
-                No audit logs found
-              </TableCell>
-            </TableRow>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Actor</TableHead>
+                  <TableHead>Action</TableHead>
+                  <TableHead>Target</TableHead>
+                  <TableHead>Result</TableHead>
+                  <TableHead>Timestamp</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  Array.from({ length: 8 }).map((_, i) => (
+                    <TableRow key={i}>
+                      {Array.from({ length: 5 }).map((_, j) => (
+                        <TableCell key={j}>
+                          <Skeleton className="h-5 w-20" />
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : data?.data?.length ? (
+                  data.data.map((log) => (
+                    <TableRow key={log.id}>
+                      <TableCell className="font-medium">{log.actor}</TableCell>
+                      <TableCell>
+                        <span className="capitalize">
+                          {log.action.replace(/_/g, ' ').toLowerCase()}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{log.target}</TableCell>
+                      <TableCell>
+                        <Badge variant={log.result === 'SUCCESS' ? 'success' : 'destructive'}>
+                          {log.result}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {new Date(log.timestamp).toLocaleString()}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                      <ScrollText className="mx-auto h-8 w-8 mb-2" />
+                      No audit logs found
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
           )}
-        </TableBody>
-      </Table>
         </CardContent>
       </Card>
 
