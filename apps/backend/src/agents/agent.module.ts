@@ -10,11 +10,20 @@ import { Artifact } from '../artifacts/entities/artifact.entity';
 import { Deployment } from '../deployments/entities/deployment.entity';
 import { DeploymentEvent } from '../deployments/entities/deployment-event.entity';
 import { ArtifactModule } from '../artifacts/artifact.module';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Device, DeviceNetwork, Release, Artifact, Deployment, DeploymentEvent]),
+    TypeOrmModule.forFeature([
+      Device,
+      DeviceNetwork,
+      Release,
+      Artifact,
+      Deployment,
+      DeploymentEvent,
+    ]),
     ArtifactModule,
+    AuditModule,
   ],
   controllers: [AgentController],
   providers: [AgentService, DeviceAgentGuard],

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { v4 as uuid } from 'uuid';
@@ -9,10 +9,17 @@ import { Artifact } from '../artifacts/entities/artifact.entity';
 import { Deployment } from '../deployments/entities/deployment.entity';
 import { DeploymentEvent } from '../deployments/entities/deployment-event.entity';
 import { ArtifactService } from '../artifacts/artifact.service';
+import { AuditService } from '../audit/audit.service';
 import { RegisterAgentDto } from './dto/register-agent.dto';
 import { HeartbeatDto } from './dto/heartbeat.dto';
 import { DeploymentStatusDto } from './dto/deployment-status.dto';
-import { DeviceStatus, ReleaseStatus, DeploymentStatus, deploymentTransitions } from '@rscb/shared';
+import {
+  AuditAction,
+  DeviceStatus,
+  ReleaseStatus,
+  DeploymentStatus,
+  deploymentTransitions,
+} from '@rscb/shared';
 
 @Injectable()
 export class AgentService {
@@ -30,36 +37,70 @@ export class AgentService {
     @InjectRepository(DeploymentEvent)
     private readonly eventRepository: Repository<DeploymentEvent>,
     private readonly artifactService: ArtifactService,
+    private readonly auditService: AuditService,
   ) {}
 
   async register(dto: RegisterAgentDto) {
-    const existing = await this.deviceRepository.findOne({ where: { deviceId: dto.deviceId } });
-    if (existing) {
-      throw new ConflictException('Device already registered');
-    }
     const token = uuid();
-    const device = this.deviceRepository.create({
-      deviceId: dto.deviceId,
-      hostname: dto.hostname,
-      os: dto.os,
-      agentVersion: dto.agentVersion,
-      applicationVersion: dto.applicationVersion,
-      token,
-      lastSeen: new Date(),
-      status: DeviceStatus.ONLINE,
+    let device = await this.deviceRepository.findOne({
+      where: { deviceId: dto.deviceId },
     });
-    const saved = await this.deviceRepository.save(device);
+    if (device) {
+      device.hostname = dto.hostname;
+      if (dto.os) {
+        device.os = dto.os;
+      }
+      device.agentVersion = dto.agentVersion;
+      if (dto.applicationVersion) {
+        device.applicationVersion = dto.applicationVersion;
+      }
+      if (!device.token) {
+        device.token = token;
+      }
+      device.lastSeen = new Date();
+      device.status = DeviceStatus.ONLINE;
+      device = await this.deviceRepository.save(device);
+    } else {
+      device = await this.deviceRepository.save(
+        this.deviceRepository.create({
+          deviceId: dto.deviceId,
+          hostname: dto.hostname,
+          os: dto.os,
+          agentVersion: dto.agentVersion,
+          applicationVersion: dto.applicationVersion,
+          token,
+          lastSeen: new Date(),
+          status: DeviceStatus.ONLINE,
+        }),
+      );
+    }
     if (dto.ipAddress && dto.ipAddress.length > 0) {
+      await this.networkRepository.delete({ device: { id: device.id } });
       const networks = dto.ipAddress.map((ip) =>
-        this.networkRepository.create({ device: saved, ipAddress: ip }),
+        this.networkRepository.create({ device, ipAddress: ip }),
       );
       await this.networkRepository.save(networks);
     }
-    return { deviceId: saved.deviceId, token: saved.token };
+    await this.auditService.log({
+      actor: device.deviceId,
+      action: AuditAction.AGENT_REGISTERED,
+      target: 'DEVICE',
+      targetId: device.id,
+      details: {
+        hostname: device.hostname,
+        os: device.os,
+        agentVersion: device.agentVersion,
+      },
+      result: 'SUCCESS',
+    });
+    return { deviceId: device.deviceId, token: device.token };
   }
 
   async heartbeat(deviceId: string, dto: HeartbeatDto) {
-    const device = await this.deviceRepository.findOne({ where: { deviceId }, relations: ['networks'] });
+    const device = await this.deviceRepository.findOne({
+      where: { deviceId },
+      relations: ['networks'],
+    });
     if (!device) {
       throw new NotFoundException('Device not found');
     }
@@ -124,9 +165,7 @@ export class AgentService {
     return {
       hasUpdate,
       latestVersion: latest.version,
-      downloadUrl: latest.artifact
-        ? `/api/v1/agents/artifacts/${latest.id}/download-url`
-        : null,
+      downloadUrl: latest.artifact ? `/api/v1/agents/artifacts/${latest.id}/download-url` : null,
       deploymentId: deployment?.id || null,
       targetVersion: deployment?.release?.version || null,
       deploymentStatus: deployment?.status || null,
@@ -136,17 +175,15 @@ export class AgentService {
   async reportDeploymentStatus(deploymentId: string, dto: DeploymentStatusDto) {
     const deployment = await this.deploymentRepository.findOne({
       where: { id: deploymentId },
-      relations: ['events'],
+      relations: ['events', 'device', 'release'],
     });
     if (!deployment) {
       throw new NotFoundException('Deployment not found');
     }
     const newStatus = dto.status as DeploymentStatus;
     const validNext = deploymentTransitions.get(deployment.status) || [];
-    if (validNext.length > 0 && !validNext.includes(newStatus)) {
-      throw new BadRequestException(
-        `Cannot transition from ${deployment.status} to ${newStatus}`,
-      );
+    if (!validNext.includes(newStatus)) {
+      throw new BadRequestException(`Cannot transition from ${deployment.status} to ${newStatus}`);
     }
     deployment.status = newStatus;
     if (dto.errorMessage) {
@@ -164,10 +201,41 @@ export class AgentService {
     if (newStatus === DeploymentStatus.SUCCESS || newStatus === DeploymentStatus.FAILED) {
       await this.deviceRepository.update(
         { id: deployment.device.id },
-        { status: newStatus === DeploymentStatus.SUCCESS ? DeviceStatus.ONLINE : DeviceStatus.ERROR },
+        {
+          status: newStatus === DeploymentStatus.SUCCESS ? DeviceStatus.ONLINE : DeviceStatus.ERROR,
+        },
       );
     }
+
+    const auditAction = this.auditActionForStatus(newStatus);
+    if (auditAction) {
+      await this.auditService.log({
+        actor: deployment.device.deviceId,
+        action: auditAction,
+        target: 'DEPLOYMENT',
+        targetId: deployment.id,
+        details: {
+          status: newStatus,
+          releaseVersion: deployment.release?.version,
+          errorMessage: dto.errorMessage,
+        },
+        result: newStatus === DeploymentStatus.FAILED ? 'FAILURE' : 'SUCCESS',
+      });
+    }
     return { status: 'ok' };
+  }
+
+  private auditActionForStatus(status: DeploymentStatus): AuditAction | null {
+    switch (status) {
+      case DeploymentStatus.DOWNLOADING:
+        return AuditAction.DEPLOYMENT_STARTED;
+      case DeploymentStatus.SUCCESS:
+        return AuditAction.DEPLOYMENT_SUCCESS;
+      case DeploymentStatus.FAILED:
+        return AuditAction.DEPLOYMENT_FAILED;
+      default:
+        return null;
+    }
   }
 
   async getDownloadUrl(releaseId: string) {
@@ -178,8 +246,31 @@ export class AgentService {
     if (!release || !release.artifact) {
       throw new NotFoundException('Release or artifact not found');
     }
+    if (this.artifactService.isLocalStorage()) {
+      return { downloadUrl: `/api/v1/agents/artifacts/${releaseId}/file` };
+    }
     const url = await this.artifactService.getDownloadUrl(release.artifact);
     return { downloadUrl: url };
+  }
+
+  async getArtifactFile(releaseId: string) {
+    const release = await this.releaseRepository.findOne({
+      where: { id: releaseId },
+      relations: ['artifact'],
+    });
+    if (!release || !release.artifact) {
+      throw new NotFoundException('Release or artifact not found');
+    }
+    if (release.status !== ReleaseStatus.PUBLISHED && release.status !== ReleaseStatus.ARCHIVED) {
+      throw new BadRequestException('Release is not available for download');
+    }
+    const stream = await this.artifactService.getReadStream(release.artifact);
+    return {
+      stream,
+      fileName: release.artifact.fileName,
+      mimeType: release.artifact.mimeType,
+      size: Number(release.artifact.size),
+    };
   }
 
   private compareVersions(a: string, b: string): number {

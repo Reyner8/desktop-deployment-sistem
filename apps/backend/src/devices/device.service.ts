@@ -1,10 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like } from 'typeorm';
 import { Device } from './entities/device.entity';
 import { DeviceNetwork } from './entities/device-network.entity';
 import { QueryDeviceDto } from './dto/query-device.dto';
-import { DeviceStatus } from '@rscb/shared';
 
 @Injectable()
 export class DeviceService {
@@ -50,10 +49,9 @@ export class DeviceService {
       where: { id },
       relations: ['networks'],
     });
+    if (!device) {
+      throw new NotFoundException('Device not found');
+    }
     return device;
-  }
-
-  async updateStatus(deviceId: string, status: DeviceStatus) {
-    await this.deviceRepository.update({ deviceId }, { status, lastSeen: new Date() });
   }
 }
