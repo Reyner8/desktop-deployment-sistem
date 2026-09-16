@@ -1,44 +1,76 @@
+import { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useDeployment } from '@/lib/query/deployments';
+import { DeploymentStatus } from '@rscb/shared';
+import { useDeployment, useCancelDeployment } from '@/lib/query/deployments';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { ErrorState } from '@/components/ui/error-state';
+import { getErrorMessage } from '@/lib/api/axios';
 import { toast } from '@/stores/toast-store';
-import { useCancelDeployment } from '@/lib/query/deployments';
-import { Rocket, XCircle, CheckCircle, Clock, RefreshCw } from 'lucide-react';
+import { Rocket, XCircle, CheckCircle, Clock, RefreshCw, AlertTriangle } from 'lucide-react';
 
 const eventIcons: Record<string, React.ElementType> = {
-  SUCCESS: CheckCircle,
-  FAILED: XCircle,
-  PENDING: Clock,
-  ASSIGNED: Clock,
-  DOWNLOADING: RefreshCw,
-  VERIFYING: RefreshCw,
-  INSTALLING: RefreshCw,
-  STARTING: RefreshCw,
-  CANCELLED: XCircle,
+  [DeploymentStatus.SUCCESS]: CheckCircle,
+  [DeploymentStatus.FAILED]: XCircle,
+  [DeploymentStatus.PENDING]: Clock,
+  [DeploymentStatus.ASSIGNED]: Clock,
+  [DeploymentStatus.DOWNLOADING]: RefreshCw,
+  [DeploymentStatus.VERIFYING]: RefreshCw,
+  [DeploymentStatus.INSTALLING]: RefreshCw,
+  [DeploymentStatus.STARTING]: RefreshCw,
+  [DeploymentStatus.CANCELLED]: XCircle,
 };
 
-const ACTIVE_STATUSES = ['ASSIGNED'];
+const CANCELLABLE_STATUSES: DeploymentStatus[] = [
+  DeploymentStatus.PENDING,
+  DeploymentStatus.ASSIGNED,
+];
 
 export function DeploymentDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { data: deployment, isLoading } = useDeployment(id!);
+  const { data: deployment, isLoading, isError, refetch } = useDeployment(id!);
   const cancelDeployment = useCancelDeployment();
+  const [cancelOpen, setCancelOpen] = useState(false);
 
   const handleCancel = async () => {
     if (!id) return;
     try {
       await cancelDeployment.mutateAsync(id);
       toast({ title: 'Deployment cancelled', variant: 'success' });
-    } catch {
-      toast({ title: 'Failed to cancel', variant: 'destructive' });
+      setCancelOpen(false);
+    } catch (error) {
+      toast({
+        title: 'Failed to cancel',
+        description: getErrorMessage(error),
+        variant: 'destructive',
+      });
     }
   };
 
   if (isLoading) {
-    return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-60 w-full" /></div>;
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-60 w-full" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <ErrorState
+            title="Unable to load deployment"
+            message="The deployment server could not be reached."
+            onRetry={() => refetch()}
+          />
+        </CardContent>
+      </Card>
+    );
   }
 
   if (!deployment) {
@@ -55,16 +87,31 @@ export function DeploymentDetailPage() {
           </h2>
           <StatusBadge status={deployment.status} />
         </div>
-        {ACTIVE_STATUSES.includes(deployment.status) && (
-          <Button variant="destructive" size="sm" onClick={handleCancel}>
+        {CANCELLABLE_STATUSES.includes(deployment.status) && (
+          <Button variant="destructive" size="sm" onClick={() => setCancelOpen(true)}>
             <XCircle className="mr-2 h-4 w-4" /> Cancel
           </Button>
         )}
       </div>
 
+      {deployment.status === DeploymentStatus.FAILED && deployment.errorMessage && (
+        <Card className="border-destructive/40">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" /> Deployment Failed
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm break-words">{deployment.errorMessage}</p>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card>
-          <CardHeader><CardTitle>Details</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Details</CardTitle>
+          </CardHeader>
           <CardContent className="space-y-3">
             <Row label="Device" value={deployment.deviceHostname} />
             <Row label="Release" value={deployment.releaseVersion} />
@@ -75,7 +122,9 @@ export function DeploymentDetailPage() {
         </Card>
 
         <Card className="lg:col-span-2">
-          <CardHeader><CardTitle>Timeline</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Timeline</CardTitle>
+          </CardHeader>
           <CardContent>
             {deployment.events && deployment.events.length > 0 ? (
               <div className="relative space-y-4">
@@ -103,6 +152,18 @@ export function DeploymentDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      <ConfirmDialog
+        open={cancelOpen}
+        onOpenChange={setCancelOpen}
+        title="Cancel deployment?"
+        description="Deployment yang dibatalkan tidak akan dijalankan oleh agent. Tindakan ini tidak dapat diurungkan."
+        confirmLabel="Cancel Deployment"
+        cancelLabel="Keep"
+        destructive
+        loading={cancelDeployment.isPending}
+        onConfirm={handleCancel}
+      />
     </div>
   );
 }

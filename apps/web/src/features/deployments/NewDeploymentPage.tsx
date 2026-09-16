@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import type { DeployTargetInfo } from '@rscb/shared';
+import { DeviceStatus, ReleaseStatus } from '@rscb/shared';
 import { useDevices } from '@/lib/query/devices';
 import { useReleases } from '@/lib/query/releases';
 import { useCreateDeployment } from '@/lib/query/deployments';
@@ -7,11 +9,26 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '@/components/ui/table';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { toast } from '@/stores/toast-store';
+import { getErrorMessage } from '@/lib/api/axios';
 import { ArrowLeft, ArrowRight, Check, Rocket, Search } from 'lucide-react';
 
 export function NewDeploymentPage() {
@@ -20,9 +37,13 @@ export function NewDeploymentPage() {
   const [selectedReleaseId, setSelectedReleaseId] = useState<string>('');
   const [selectedDeviceIds, setSelectedDeviceIds] = useState<Set<string>>(new Set());
   const [deviceSearch, setDeviceSearch] = useState('');
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const createDeployment = useCreateDeployment();
 
-  const { data: releases, isLoading: loadingReleases } = useReleases({ status: 'PUBLISHED', limit: 100 });
+  const { data: releases, isLoading: loadingReleases } = useReleases({
+    status: ReleaseStatus.PUBLISHED,
+    limit: 100,
+  });
   const { data: devices, isLoading: loadingDevices } = useDevices({ limit: 500 });
 
   const visibleDevices = devices?.data?.filter(
@@ -62,12 +83,27 @@ export function NewDeploymentPage() {
       });
       toast({ title: 'Deployment created', variant: 'success' });
       navigate(`/deployments/${result.id}`);
-    } catch {
-      toast({ title: 'Deployment failed', variant: 'destructive' });
+    } catch (error) {
+      toast({
+        title: 'Deployment failed',
+        description: getErrorMessage(error),
+        variant: 'destructive',
+      });
     }
   };
 
   const selectedRelease = releases?.data?.find((r) => r.id === selectedReleaseId);
+  const selectedTargets: DeployTargetInfo[] = (devices?.data || [])
+    .filter((d) => selectedDeviceIds.has(d.id))
+    .map((d) => ({
+      deviceId: d.deviceId,
+      hostname: d.hostname,
+      ipAddress: d.ipAddress,
+      currentVersion: d.applicationVersion || null,
+      status: d.status,
+    }));
+  const onlineTargets = selectedTargets.filter((d) => d.status === DeviceStatus.ONLINE).length;
+  const offlineTargets = selectedTargets.filter((d) => d.status === DeviceStatus.OFFLINE).length;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -76,9 +112,11 @@ export function NewDeploymentPage() {
       <div className="flex items-center gap-2 mb-6">
         {[1, 2, 3].map((s) => (
           <div key={s} className="flex items-center">
-            <div className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium ${
-              step >= s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
-            }`}>
+            <div
+              className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium ${
+                step >= s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+              }`}
+            >
               {step > s ? <Check className="h-4 w-4" /> : s}
             </div>
             {s < 3 && <div className={`h-0.5 w-12 ${step > s ? 'bg-primary' : 'bg-muted'}`} />}
@@ -88,7 +126,9 @@ export function NewDeploymentPage() {
 
       {step === 1 && (
         <Card>
-          <CardHeader><CardTitle>Select Release</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Select Release</CardTitle>
+          </CardHeader>
           <CardContent>
             {loadingReleases ? (
               <Skeleton className="h-10 w-full" />
@@ -131,7 +171,8 @@ export function NewDeploymentPage() {
                   />
                 </div>
                 <Button variant="outline" size="sm" onClick={selectAll}>
-                  {visibleDevices?.length && visibleDevices.every((d) => selectedDeviceIds.has(d.id))
+                  {visibleDevices?.length &&
+                  visibleDevices.every((d) => selectedDeviceIds.has(d.id))
                     ? 'Deselect All'
                     : 'Select All'}
                 </Button>
@@ -151,7 +192,10 @@ export function NewDeploymentPage() {
                   <TableRow>
                     <TableHead className="w-10">
                       <Checkbox
-                        checked={!!visibleDevices?.length && visibleDevices.every((d) => selectedDeviceIds.has(d.id))}
+                        checked={
+                          !!visibleDevices?.length &&
+                          visibleDevices.every((d) => selectedDeviceIds.has(d.id))
+                        }
                         onCheckedChange={selectAll}
                       />
                     </TableHead>
@@ -163,19 +207,25 @@ export function NewDeploymentPage() {
                 <TableBody>
                   {visibleDevices?.length ? (
                     visibleDevices.map((device) => (
-                    <TableRow key={device.id} className="cursor-pointer" onClick={() => toggleDevice(device.id)}>
-                      <TableCell>
-                        <Checkbox
-                          checked={selectedDeviceIds.has(device.id)}
-                          onCheckedChange={() => toggleDevice(device.id)}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      </TableCell>
-                      <TableCell className="font-medium">{device.hostname}</TableCell>
-                      <TableCell>{device.applicationVersion || '-'}</TableCell>
-                      <TableCell><StatusBadge status={device.status} /></TableCell>
-                    </TableRow>
-                  ))
+                      <TableRow
+                        key={device.id}
+                        className="cursor-pointer"
+                        onClick={() => toggleDevice(device.id)}
+                      >
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedDeviceIds.has(device.id)}
+                            onCheckedChange={() => toggleDevice(device.id)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium">{device.hostname}</TableCell>
+                        <TableCell>{device.applicationVersion || '-'}</TableCell>
+                        <TableCell>
+                          <StatusBadge status={device.status} />
+                        </TableCell>
+                      </TableRow>
+                    ))
                   ) : (
                     <TableRow>
                       <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
@@ -187,7 +237,9 @@ export function NewDeploymentPage() {
               </Table>
             )}
             <div className="flex justify-between mt-4">
-              <Button variant="outline" onClick={() => setStep(1)}><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
+              <Button variant="outline" onClick={() => setStep(1)}>
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back
+              </Button>
               <Button onClick={() => setStep(3)} disabled={selectedDeviceIds.size === 0}>
                 Next: Review <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
@@ -198,12 +250,16 @@ export function NewDeploymentPage() {
 
       {step === 3 && (
         <Card>
-          <CardHeader><CardTitle>Review Deployment</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Review Deployment</CardTitle>
+          </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-md border p-4 space-y-3">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Release</span>
-                <span className="font-medium">{selectedRelease?.application} - {selectedRelease?.version}</span>
+                <span className="font-medium">
+                  {selectedRelease?.application} - {selectedRelease?.version}
+                </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Devices Selected</span>
@@ -211,20 +267,44 @@ export function NewDeploymentPage() {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Online</span>
-                <span className="font-medium">
-                  {devices?.data?.filter((d) => selectedDeviceIds.has(d.id) && d.status === 'ONLINE').length}
-                </span>
+                <span className="font-medium">{onlineTargets}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Offline</span>
-                <span className="font-medium">
-                  {devices?.data?.filter((d) => selectedDeviceIds.has(d.id) && d.status === 'OFFLINE').length}
-                </span>
+                <span className="font-medium">{offlineTargets}</span>
               </div>
             </div>
+
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Device</TableHead>
+                    <TableHead>IP</TableHead>
+                    <TableHead>Current Version</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {selectedTargets.map((device) => (
+                    <TableRow key={device.deviceId}>
+                      <TableCell className="font-medium">{device.hostname}</TableCell>
+                      <TableCell>{device.ipAddress || '-'}</TableCell>
+                      <TableCell>{device.currentVersion || '-'}</TableCell>
+                      <TableCell>
+                        <StatusBadge status={device.status} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
             <div className="flex justify-between">
-              <Button variant="outline" onClick={() => setStep(2)}><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
-              <Button onClick={handleDeploy} disabled={createDeployment.isPending}>
+              <Button variant="outline" onClick={() => setStep(2)}>
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back
+              </Button>
+              <Button onClick={() => setConfirmOpen(true)} disabled={createDeployment.isPending}>
                 <Rocket className="mr-2 h-4 w-4" />
                 {createDeployment.isPending ? 'Deploying...' : 'Confirm Deploy'}
               </Button>
@@ -232,6 +312,16 @@ export function NewDeploymentPage() {
           </CardContent>
         </Card>
       )}
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={`Deploy release ${selectedRelease?.version ?? ''}?`}
+        description={`Release akan dikirim ke ${selectedDeviceIds.size} device (${onlineTargets} online, ${offlineTargets} offline). Device offline akan menjalankan update saat terhubung kembali.`}
+        confirmLabel="Deploy"
+        loading={createDeployment.isPending}
+        onConfirm={handleDeploy}
+      />
     </div>
   );
 }

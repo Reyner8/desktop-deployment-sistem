@@ -7,9 +7,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import { toast } from '@/stores/toast-store';
-import api from '@/lib/api/axios';
+import { getErrorMessage } from '@/lib/api/axios';
+import { useCreateRelease, useUploadArtifact, usePublishRelease } from '@/lib/query/releases';
 import { ArrowLeft, ArrowRight, Upload, Check } from 'lucide-react';
 
 const releaseSchema = z.object({
@@ -24,10 +32,13 @@ export function NewReleasePage() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [fileInfo, setFileInfo] = useState<{ name: string; size: number; sha256: string } | null>(null);
-  const [publishing, setPublishing] = useState(false);
+  const [fileInfo, setFileInfo] = useState<{ name: string; size: number; sha256: string } | null>(
+    null,
+  );
   const [releaseId, setReleaseId] = useState<string | null>(null);
+  const createRelease = useCreateRelease();
+  const uploadArtifact = useUploadArtifact();
+  const publishRelease = usePublishRelease();
 
   const form = useForm<ReleaseForm>({
     resolver: zodResolver(releaseSchema),
@@ -37,47 +48,52 @@ export function NewReleasePage() {
   const formValues = form.watch();
 
   const handleFileUpload = async () => {
-    if (!uploadedFile) return;
-    setUploading(true);
+    if (!uploadedFile || !releaseId) return;
     try {
-      const formData = new FormData();
-      formData.append('file', uploadedFile);
-      const { data } = await api.post(`/releases/${releaseId}/artifact`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+      const artifact = await uploadArtifact.mutateAsync({ releaseId, file: uploadedFile });
+      setFileInfo({
+        name: artifact.fileName,
+        size: Number(artifact.size),
+        sha256: artifact.sha256,
       });
-      const artifact = data.data;
-      setFileInfo({ name: artifact.fileName, size: Number(artifact.size), sha256: artifact.sha256 });
       setStep(3);
       toast({ title: 'File uploaded successfully', variant: 'success' });
-    } catch {
-      toast({ title: 'Upload failed', variant: 'destructive' });
-    } finally {
-      setUploading(false);
+    } catch (error) {
+      toast({
+        title: 'Upload failed',
+        description: getErrorMessage(error),
+        variant: 'destructive',
+      });
     }
   };
 
   const handleCreate = async (values: ReleaseForm) => {
     try {
-      const { data } = await api.post('/releases', values);
-      setReleaseId(data.data.id);
+      const release = await createRelease.mutateAsync(values);
+      setReleaseId(release.id);
       setStep(2);
       toast({ title: 'Release created', variant: 'success' });
-    } catch {
-      toast({ title: 'Failed to create release', variant: 'destructive' });
+    } catch (error) {
+      toast({
+        title: 'Failed to create release',
+        description: getErrorMessage(error),
+        variant: 'destructive',
+      });
     }
   };
 
   const handlePublish = async () => {
     if (!releaseId) return;
-    setPublishing(true);
     try {
-      await api.post(`/releases/${releaseId}/publish`);
+      await publishRelease.mutateAsync(releaseId);
       toast({ title: 'Release published', variant: 'success' });
       navigate(`/releases/${releaseId}`);
-    } catch {
-      toast({ title: 'Publish failed', variant: 'destructive' });
-    } finally {
-      setPublishing(false);
+    } catch (error) {
+      toast({
+        title: 'Publish failed',
+        description: getErrorMessage(error),
+        variant: 'destructive',
+      });
     }
   };
 
@@ -88,9 +104,11 @@ export function NewReleasePage() {
       <div className="flex items-center gap-2 mb-6">
         {[1, 2, 3, 4].map((s) => (
           <div key={s} className="flex items-center">
-            <div className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium ${
-              step >= s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
-            }`}>
+            <div
+              className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium ${
+                step >= s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+              }`}
+            >
               {step > s ? <Check className="h-4 w-4" /> : s}
             </div>
             {s < 4 && <div className={`h-0.5 w-12 ${step > s ? 'bg-primary' : 'bg-muted'}`} />}
@@ -100,59 +118,70 @@ export function NewReleasePage() {
 
       {step === 1 && (
         <Card>
-          <CardHeader><CardTitle>Release Information</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Release Information</CardTitle>
+          </CardHeader>
           <CardContent>
             <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleCreate)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="application"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Application Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g. SIMRS" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="version"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Version</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g. 1.5.0" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="releaseNotes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Release Notes</FormLabel>
-                    <FormControl>
-                      <Textarea className="min-h-[100px]" placeholder="Describe what's new in this release..." {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button type="submit"><ArrowRight className="mr-2 h-4 w-4" /> Next: Upload Artifact</Button>
-            </form>
-          </Form>
+              <form onSubmit={form.handleSubmit(handleCreate)} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="application"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Application Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g. SIMRS" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="version"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Version</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g. 1.5.0" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="releaseNotes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Release Notes</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          className="min-h-[100px]"
+                          placeholder="Describe what's new in this release..."
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button type="submit" disabled={createRelease.isPending}>
+                  <ArrowRight className="mr-2 h-4 w-4" />
+                  {createRelease.isPending ? 'Creating...' : 'Next: Upload Artifact'}
+                </Button>
+              </form>
+            </Form>
           </CardContent>
         </Card>
       )}
 
       {step === 2 && (
         <Card>
-          <CardHeader><CardTitle>Upload Artifact</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Upload Artifact</CardTitle>
+          </CardHeader>
           <CardContent className="space-y-4">
             <div
               className="border-2 border-dashed rounded-lg p-12 text-center cursor-pointer hover:border-primary"
@@ -171,9 +200,14 @@ export function NewReleasePage() {
               />
             </div>
             <div className="flex justify-between">
-              <Button variant="outline" onClick={() => setStep(1)}><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
-              <Button onClick={handleFileUpload} disabled={!uploadedFile || uploading}>
-                {uploading ? 'Uploading...' : 'Upload'}
+              <Button variant="outline" onClick={() => setStep(1)}>
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back
+              </Button>
+              <Button
+                onClick={handleFileUpload}
+                disabled={!uploadedFile || uploadArtifact.isPending}
+              >
+                {uploadArtifact.isPending ? 'Uploading...' : 'Upload'}
               </Button>
             </div>
           </CardContent>
@@ -182,7 +216,9 @@ export function NewReleasePage() {
 
       {step === 3 && fileInfo && (
         <Card>
-          <CardHeader><CardTitle>Verification</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Verification</CardTitle>
+          </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">File Name</span>
@@ -197,8 +233,12 @@ export function NewReleasePage() {
               <span className="font-mono text-xs">{fileInfo.sha256}</span>
             </div>
             <div className="flex justify-between mt-4">
-              <Button variant="outline" onClick={() => setStep(2)}><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
-              <Button onClick={() => setStep(4)}><ArrowRight className="mr-2 h-4 w-4" /> Next: Publish</Button>
+              <Button variant="outline" onClick={() => setStep(2)}>
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back
+              </Button>
+              <Button onClick={() => setStep(4)}>
+                <ArrowRight className="mr-2 h-4 w-4" /> Next: Publish
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -206,7 +246,9 @@ export function NewReleasePage() {
 
       {step === 4 && (
         <Card>
-          <CardHeader><CardTitle>Review & Publish</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Review & Publish</CardTitle>
+          </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Application</span>
@@ -222,12 +264,17 @@ export function NewReleasePage() {
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">SHA-256 Verified</span>
-              <span className="font-medium text-green-600"><Check className="inline h-4 w-4 mr-1" />Valid</span>
+              <span className="font-medium text-green-600">
+                <Check className="inline h-4 w-4 mr-1" />
+                Valid
+              </span>
             </div>
             <div className="flex justify-between mt-4">
-              <Button variant="outline" onClick={() => setStep(3)}><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
-              <Button onClick={handlePublish} disabled={publishing}>
-                {publishing ? 'Publishing...' : 'Publish Release'}
+              <Button variant="outline" onClick={() => setStep(3)}>
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back
+              </Button>
+              <Button onClick={handlePublish} disabled={publishRelease.isPending}>
+                {publishRelease.isPending ? 'Publishing...' : 'Publish Release'}
               </Button>
             </div>
           </CardContent>
