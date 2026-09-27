@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
@@ -42,8 +43,23 @@ const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTML
 );
 TableRow.displayName = 'TableRow';
 
-const TableHead = React.forwardRef<HTMLTableCellElement, React.ThHTMLAttributes<HTMLTableCellElement>>(
-  ({ className, ...props }, ref) => (
+type SortDirection = 'ASC' | 'DESC';
+
+const TableHead = React.forwardRef<
+  HTMLTableCellElement,
+  React.ThHTMLAttributes<HTMLTableCellElement> & {
+    /** Nama kolom yang dikirim ke backend sebagai ?sort=. */
+    sortKey?: string;
+    /** True bila kolom ini sedang menjadi urutan aktif. */
+    sortActive?: boolean;
+    sortDirection?: SortDirection;
+    /** Bila tidak diisi bersama sortKey, header tidak bisa diklik. */
+    onSort?: (sortKey: string) => void;
+  }
+>(({ className, sortKey, sortActive, sortDirection, onSort, children, ...props }, ref) => {
+  const sortable = !!sortKey && !!onSort;
+
+  return (
     <th
       ref={ref}
       className={cn(
@@ -51,9 +67,33 @@ const TableHead = React.forwardRef<HTMLTableCellElement, React.ThHTMLAttributes<
         className,
       )}
       {...props}
-    />
-  ),
-);
+    >
+      {sortable ? (
+        <button
+          type="button"
+          onClick={() => onSort(sortKey)}
+          aria-label={
+            typeof children === 'string' ? `Sort by ${children}` : `Sort by ${sortKey}`
+          }
+          className="-mx-1 inline-flex items-center gap-1.5 rounded px-1 py-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          {children}
+          {sortActive ? (
+            sortDirection === 'ASC' ? (
+              <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
+            ) : (
+              <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
+            )
+          ) : (
+            <ArrowUpDown className="h-3.5 w-3.5 opacity-40" aria-hidden="true" />
+          )}
+        </button>
+      ) : (
+        children
+      )}
+    </th>
+  );
+});
 TableHead.displayName = 'TableHead';
 
 const TableCell = React.forwardRef<HTMLTableCellElement, React.TdHTMLAttributes<HTMLTableCellElement>>(
