@@ -9,6 +9,13 @@ import { AuditService } from '../audit/audit.service';
 import { CreateDeploymentDto } from './dto/create-deployment.dto';
 import { QueryDeploymentDto } from './dto/query-deployment.dto';
 import { AuditAction, DeploymentStatus, ReleaseStatus, deploymentTransitions } from '@rscb/shared';
+import { resolveOrder } from '../common/sort.util';
+
+/**
+ * Kolom deployment yang bisa diurutkan. Kolom device dan release berada di
+ * tabel lain sehingga tidak ikut dibiarkan.
+ */
+const SORTABLE_FIELDS = ['status', 'createdAt', 'updatedAt'] as const;
 
 @Injectable()
 export class DeploymentService {
@@ -92,7 +99,7 @@ export class DeploymentService {
       relations: ['release', 'device', 'events'],
       skip,
       take: limit,
-      order: { createdAt: 'DESC' },
+      order: resolveOrder(query.sortBy, SORTABLE_FIELDS, 'createdAt', query.sortOrder),
     });
 
     return {
