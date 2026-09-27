@@ -146,6 +146,24 @@ export class ArtifactService {
     return this.storage.getSignedUrl(artifact.objectKey);
   }
 
+  async getArtifactByKey(objectKey: string): Promise<Artifact> {
+    const candidates = new Set<string>([objectKey]);
+    try {
+      candidates.add(decodeURIComponent(objectKey));
+    } catch {
+      // key tidak valid sebagai percent-encoding, pakai apa adanya
+    }
+    for (const candidate of candidates) {
+      const artifact = await this.artifactRepository.findOne({
+        where: { objectKey: candidate },
+      });
+      if (artifact) {
+        return artifact;
+      }
+    }
+    throw new NotFoundException('Artifact not found');
+  }
+
   async getReadStream(artifact: Artifact) {
     return this.storage.getReadStream(artifact.objectKey);
   }
