@@ -77,12 +77,22 @@ export function NewDeploymentPage() {
   const handleDeploy = async () => {
     if (!selectedReleaseId || selectedDeviceIds.size === 0) return;
     try {
-      const result = await createDeployment.mutateAsync({
+      const created = await createDeployment.mutateAsync({
         releaseId: selectedReleaseId,
         deviceIds: Array.from(selectedDeviceIds),
       });
-      toast({ title: 'Deployment created', variant: 'success' });
-      navigate(`/deployments/${result.id}`);
+      if (created.length === 0) {
+        throw new Error('No deployment was created');
+      }
+      if (created.length === 1) {
+        toast({ title: 'Deployment created', variant: 'success' });
+        navigate(`/deployments/${created[0].id}`);
+      } else {
+        // Banyak device: buka daftar supaya semua hasil terlihat, bukan
+        // hanya deployment pertama.
+        toast({ title: `${created.length} deployments created`, variant: 'success' });
+        navigate('/deployments');
+      }
     } catch (error) {
       toast({
         title: 'Deployment failed',
