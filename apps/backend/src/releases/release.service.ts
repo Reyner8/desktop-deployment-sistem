@@ -7,6 +7,15 @@ import { AuditService } from '../audit/audit.service';
 import { CreateReleaseDto } from './dto/create-release.dto';
 import { QueryReleaseDto } from './dto/query-release.dto';
 import { AuditAction, ReleaseStatus, releaseTransitions } from '@rscb/shared';
+import { resolveOrder } from '../common/sort.util';
+
+const SORTABLE_FIELDS = [
+  'application',
+  'version',
+  'status',
+  'createdAt',
+  'publishedAt',
+] as const;
 
 @Injectable()
 export class ReleaseService {
@@ -63,7 +72,7 @@ export class ReleaseService {
       relations: ['artifact'],
       skip,
       take: limit,
-      order: { createdAt: 'DESC' },
+      order: resolveOrder(query.sortBy, SORTABLE_FIELDS, 'createdAt', query.sortOrder),
     });
 
     const items = await Promise.all(data.map((release) => this.withDownloadUrl(release)));
