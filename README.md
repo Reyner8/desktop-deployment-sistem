@@ -133,6 +133,7 @@ GitHub Actions workflow.
 | POST       | `/api/v1/releases`                                 | Create release                    |
 | GET        | `/api/v1/releases`                                 | List releases                     |
 | POST       | `/api/v1/releases/:id/artifact`                    | Upload artifact                   |
+| GET        | `/api/v1/artifacts/file/:key`                      | Download artifact (storage lokal) |
 | POST       | `/api/v1/releases/:id/publish`                     | Publish release                   |
 | POST       | `/api/v1/releases/:id/archive`                     | Archive release                   |
 | POST       | `/api/v1/deployments`                              | Create deployment                 |
@@ -146,6 +147,7 @@ GitHub Actions workflow.
 | **POST**   | **`/api/v1/ci/uploads/:id/complete`**              | **Finalisasi → PUBLISHED**        |
 | **DELETE** | **`/api/v1/ci/uploads/:id`**                       | **Batalkan sesi**                 |
 | **GET**    | **`/api/v1/ci/releases?application=&version=`**    | **Cek duplikat**                  |
+| GET        | `/api/v1/dashboard/stats`                          | Statistik dashboard               |
 | GET        | `/api/v1/health`                                   | Health check                      |
 | GET        | `/api/v1/health/ready`                             | Health check + database           |
 
