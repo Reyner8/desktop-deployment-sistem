@@ -13,6 +13,7 @@ import { DeploymentDetailPage } from '@/features/deployments/DeploymentDetailPag
 import { NewDeploymentPage } from '@/features/deployments/NewDeploymentPage';
 import { AuditPage } from '@/features/audit/AuditPage';
 import { SettingsPage } from '@/features/settings/SettingsPage';
+import { NotFoundPage } from '@/app/NotFoundPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token);
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="deployments/:id" element={<DeploymentDetailPage />} />
         <Route path="audit" element={<AuditPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
   );
