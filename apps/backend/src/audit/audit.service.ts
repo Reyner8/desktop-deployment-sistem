@@ -2,6 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like } from 'typeorm';
 import { AuditLog } from './entities/audit-log.entity';
+import { resolveOrder } from '../common/sort.util';
+
+/**
+ * Kolom audit yang bisa diurutkan sesuai kolom tabel. 'details' dikecualikan
+ * karena berbentuk JSON.
+ */
+const SORTABLE_FIELDS = ['actor', 'action', 'target', 'result', 'timestamp'] as const;
 
 @Injectable()
 export class AuditService {
@@ -29,7 +36,14 @@ export class AuditService {
     return this.auditRepository.save(log);
   }
 
-  async findAll(query: { actor?: string; action?: string; page?: number; limit?: number }) {
+  async findAll(query: {
+    actor?: string;
+    action?: string;
+    page?: number;
+    limit?: number;
+    sortBy?: string;
+    sortOrder?: string;
+  }) {
     const page = query.page || 1;
     const limit = query.limit || 20;
     const skip = (page - 1) * limit;
@@ -46,7 +60,7 @@ export class AuditService {
       where,
       skip,
       take: limit,
-      order: { timestamp: 'DESC' },
+      order: resolveOrder(query.sortBy, SORTABLE_FIELDS, 'timestamp', query.sortOrder),
     });
 
     return {
