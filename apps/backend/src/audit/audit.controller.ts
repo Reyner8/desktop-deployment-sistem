@@ -13,8 +13,17 @@ export class AuditController {
     @Query('action') action?: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: string,
   ) {
-    const data = await this.auditService.findAll({ actor, action, page, limit });
+    const data = await this.auditService.findAll({
+      actor,
+      action,
+      page,
+      limit,
+      sortBy,
+      sortOrder,
+    });
     return { success: true, data };
   }
 }
