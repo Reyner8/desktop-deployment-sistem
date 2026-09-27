@@ -47,7 +47,7 @@ export class DeviceService {
       relations: ['networks'],
       skip,
       take: limit,
-      order: resolveOrder(query.sortBy, SORTABLE_FIELDS, 'lastSeen', query.sortOrder),
+      order: resolveOrder(query.sort, SORTABLE_FIELDS, 'lastSeen', query.order),
     });
 
     return {
