@@ -44,10 +44,24 @@ export function ReleasesPage() {
   const [limit, setLimit] = useState(20);
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [archiveTarget, setArchiveTarget] = useState<string | null>(null);
+  // Default mengikuti default backend: createdAt DESC (terbaru dulu).
+  const [sort, setSort] = useState('createdAt');
+  const [order, setOrder] = useState<'ASC' | 'DESC'>('DESC');
+  const handleSort = (key: string) => {
+    if (key === sort) {
+      setOrder((prev) => (prev === 'ASC' ? 'DESC' : 'ASC'));
+    } else {
+      setSort(key);
+      setOrder('ASC');
+    }
+    setPage(1);
+  };
   const { data, isLoading, isError, refetch } = useReleases({
     status: statusFilter === 'ALL' ? undefined : (statusFilter as ReleaseStatus),
     page,
     limit,
+    sort,
+    order,
   });
   const publishRelease = usePublishRelease();
   const archiveRelease = useArchiveRelease();
@@ -121,13 +135,48 @@ export function ReleasesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Version</TableHead>
-                  <TableHead>Application</TableHead>
+                  <TableHead
+                    sortKey="version"
+                    sortActive={sort === 'version'}
+                    sortDirection={order}
+                    onSort={handleSort}
+                  >
+                    Version
+                  </TableHead>
+                  <TableHead
+                    sortKey="application"
+                    sortActive={sort === 'application'}
+                    sortDirection={order}
+                    onSort={handleSort}
+                  >
+                    Application
+                  </TableHead>
                   <TableHead>Size</TableHead>
                   <TableHead>SHA-256</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created At</TableHead>
-                  <TableHead>Published At</TableHead>
+                  <TableHead
+                    sortKey="status"
+                    sortActive={sort === 'status'}
+                    sortDirection={order}
+                    onSort={handleSort}
+                  >
+                    Status
+                  </TableHead>
+                  <TableHead
+                    sortKey="createdAt"
+                    sortActive={sort === 'createdAt'}
+                    sortDirection={order}
+                    onSort={handleSort}
+                  >
+                    Created At
+                  </TableHead>
+                  <TableHead
+                    sortKey="publishedAt"
+                    sortActive={sort === 'publishedAt'}
+                    sortDirection={order}
+                    onSort={handleSort}
+                  >
+                    Published At
+                  </TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
