@@ -40,10 +40,22 @@ export function DevicesPage() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
   const [search, setSearch] = useState('');
+  // Default mengikuti default backend: lastSeen DESC (terbaru dulu).
+  const [sort, setSort] = useState('lastSeen');
+  const [order, setOrder] = useState<'ASC' | 'DESC'>('DESC');
   const [searchParams, setSearchParams] = useSearchParams();
   const statusFilter = searchParams.get('status') || 'ALL';
   const setStatusFilter = (value: string) => {
     setSearchParams(value === 'ALL' ? {} : { status: value }, { replace: true });
+    setPage(1);
+  };
+  const handleSort = (key: string) => {
+    if (key === sort) {
+      setOrder((prev) => (prev === 'ASC' ? 'DESC' : 'ASC'));
+    } else {
+      setSort(key);
+      setOrder('ASC');
+    }
     setPage(1);
   };
   const { data, isLoading, isError, refetch } = useDevices({
@@ -51,6 +63,8 @@ export function DevicesPage() {
     search: search || undefined,
     page,
     limit,
+    sort,
+    order,
   });
 
   return (
@@ -97,12 +111,40 @@ export function DevicesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Device</TableHead>
+                  <TableHead
+                    sortKey="hostname"
+                    sortActive={sort === 'hostname'}
+                    sortDirection={order}
+                    onSort={handleSort}
+                  >
+                    Device
+                  </TableHead>
                   <TableHead>IP Address</TableHead>
-                  <TableHead>SIMRS Version</TableHead>
-                  <TableHead>Agent Version</TableHead>
+                  <TableHead
+                    sortKey="applicationVersion"
+                    sortActive={sort === 'applicationVersion'}
+                    sortDirection={order}
+                    onSort={handleSort}
+                  >
+                    SIMRS Version
+                  </TableHead>
+                  <TableHead
+                    sortKey="agentVersion"
+                    sortActive={sort === 'agentVersion'}
+                    sortDirection={order}
+                    onSort={handleSort}
+                  >
+                    Agent Version
+                  </TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Last Seen</TableHead>
+                  <TableHead
+                    sortKey="lastSeen"
+                    sortActive={sort === 'lastSeen'}
+                    sortDirection={order}
+                    onSort={handleSort}
+                  >
+                    Last Seen
+                  </TableHead>
                   <TableHead className="text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
