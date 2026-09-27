@@ -16,11 +16,11 @@ export class QueryDeploymentDto {
 
   @IsOptional()
   @IsString()
-  sortBy?: string;
+  sort?: string;
 
   @IsOptional()
   @IsIn(['ASC', 'DESC'])
-  sortOrder?: 'ASC' | 'DESC' = 'DESC';
+  order?: 'ASC' | 'DESC' = 'DESC';
 
   @IsOptional()
   @Type(() => Number)
