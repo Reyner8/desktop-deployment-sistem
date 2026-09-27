@@ -41,8 +41,8 @@ export class AuditService {
     action?: string;
     page?: number;
     limit?: number;
-    sortBy?: string;
-    sortOrder?: string;
+    sort?: string;
+    order?: string;
   }) {
     const page = query.page || 1;
     const limit = query.limit || 20;
@@ -60,7 +60,7 @@ export class AuditService {
       where,
       skip,
       take: limit,
-      order: resolveOrder(query.sortBy, SORTABLE_FIELDS, 'timestamp', query.sortOrder),
+      order: resolveOrder(query.sort, SORTABLE_FIELDS, 'timestamp', query.order),
     });
 
     return {
