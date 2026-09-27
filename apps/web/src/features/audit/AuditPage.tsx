@@ -20,10 +20,24 @@ export function AuditPage() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
   const [actorFilter, setActorFilter] = useState('');
+  // Default mengikuti default backend: timestamp DESC (terbaru dulu).
+  const [sort, setSort] = useState('timestamp');
+  const [order, setOrder] = useState<'ASC' | 'DESC'>('DESC');
+  const handleSort = (key: string) => {
+    if (key === sort) {
+      setOrder((prev) => (prev === 'ASC' ? 'DESC' : 'ASC'));
+    } else {
+      setSort(key);
+      setOrder('ASC');
+    }
+    setPage(1);
+  };
   const { data, isLoading, isError, refetch } = useAuditLogs({
     actor: actorFilter || undefined,
     page,
     limit,
+    sort,
+    order,
   });
 
   return (
@@ -56,11 +70,46 @@ export function AuditPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Actor</TableHead>
-                  <TableHead>Action</TableHead>
-                  <TableHead>Target</TableHead>
-                  <TableHead>Result</TableHead>
-                  <TableHead>Timestamp</TableHead>
+                  <TableHead
+                    sortKey="actor"
+                    sortActive={sort === 'actor'}
+                    sortDirection={order}
+                    onSort={handleSort}
+                  >
+                    Actor
+                  </TableHead>
+                  <TableHead
+                    sortKey="action"
+                    sortActive={sort === 'action'}
+                    sortDirection={order}
+                    onSort={handleSort}
+                  >
+                    Action
+                  </TableHead>
+                  <TableHead
+                    sortKey="target"
+                    sortActive={sort === 'target'}
+                    sortDirection={order}
+                    onSort={handleSort}
+                  >
+                    Target
+                  </TableHead>
+                  <TableHead
+                    sortKey="result"
+                    sortActive={sort === 'result'}
+                    sortDirection={order}
+                    onSort={handleSort}
+                  >
+                    Result
+                  </TableHead>
+                  <TableHead
+                    sortKey="timestamp"
+                    sortActive={sort === 'timestamp'}
+                    sortDirection={order}
+                    onSort={handleSort}
+                  >
+                    Timestamp
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
