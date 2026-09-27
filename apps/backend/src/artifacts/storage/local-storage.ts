@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -54,6 +54,28 @@ export class LocalStorage extends ObjectStorage {
   }
 
   async getReadStream(key: string): Promise<NodeJS.ReadableStream> {
-    return fs.createReadStream(this.getFilePath(key));
+    const filePath = this.getFilePath(key);
+    const rootDir = path.resolve(this.uploadDir, 'artifacts');
+
+    // Cegah path traversal (key "a/../../b" akan keluar dari uploadDir).
+    if (!path.resolve(filePath).startsWith(rootDir + path.sep)) {
+      throw new NotFoundException('Artifact not found');
+    }
+
+    // fs.createReadStream gagal secara asinkron lewat event "error" bila file
+    // tidak ada. Stream hasil pipe() tidak meneruskan event error tersebut,
+    // sehingga tanpa listener proses backend mati. Cek dulu di sini agar
+    // berubah menjadi 404 yang ditangani NestJS.
+    let stat: fs.Stats;
+    try {
+      stat = await fs.promises.stat(filePath);
+    } catch {
+      throw new NotFoundException('Artifact not found');
+    }
+    if (!stat.isFile()) {
+      throw new NotFoundException('Artifact not found');
+    }
+
+    return fs.createReadStream(filePath);
   }
 }
