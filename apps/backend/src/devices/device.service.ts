@@ -1,9 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like } from 'typeorm';
+import { Repository, Like, LessThan, MoreThanOrEqual } from 'typeorm';
 import { Device } from './entities/device.entity';
 import { DeviceNetwork } from './entities/device-network.entity';
 import { QueryDeviceDto } from './dto/query-device.dto';
+import { DeviceStatus, DEVICE_OFFLINE_AFTER_MS } from '@rscb/shared';
 
 @Injectable()
 export class DeviceService {
@@ -18,10 +19,14 @@ export class DeviceService {
     const page = query.page || 1;
     const limit = query.limit || 20;
     const skip = (page - 1) * limit;
+    const offlineBefore = new Date(Date.now() - DEVICE_OFFLINE_AFTER_MS);
 
     const where: any = {};
-    if (query.status) {
+    if (query.status === DeviceStatus.OFFLINE) {
+      where.lastSeen = LessThan(offlineBefore);
+    } else if (query.status) {
       where.status = query.status;
+      where.lastSeen = MoreThanOrEqual(offlineBefore);
     }
     if (query.search) {
       where.hostname = Like(`%${query.search}%`);
@@ -36,7 +41,7 @@ export class DeviceService {
     });
 
     return {
-      data,
+      data: data.map((device) => this.withOfflineStatus(device)),
       total,
       page,
       limit,
@@ -51,6 +56,17 @@ export class DeviceService {
     });
     if (!device) {
       throw new NotFoundException('Device not found');
+    }
+    return this.withOfflineStatus(device);
+  }
+
+  /**
+   * Status OFFLINE diturunkan dari lastSeen, bukan dari kolom yang disimpan,
+   * karena tidak ada proses yang menulis status tersebut.
+   */
+  private withOfflineStatus(device: Device): Device {
+    if (device.lastSeen.getTime() < Date.now() - DEVICE_OFFLINE_AFTER_MS) {
+      device.status = DeviceStatus.OFFLINE;
     }
     return device;
   }
