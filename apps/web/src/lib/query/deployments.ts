@@ -98,8 +98,9 @@ export function useCreateDeployment() {
   return useMutation({
     mutationFn: async (payload: CreateDeploymentRequest) => {
       const { data } = await api.post<ApiResponse<DeploymentInfo[]>>('/deployments', payload);
-      const created = data.data || [];
-      return mapDeployment(created[0]);
+      // Backend membuat satu deployment per device. Kembalikan semuanya,
+      // bukan hanya elemen pertama, supaya hasil bulk deploy tidak hilang.
+      return (data.data || []).map(mapDeployment);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deployments'] });
