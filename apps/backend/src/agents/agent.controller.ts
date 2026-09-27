@@ -65,6 +65,18 @@ export class AgentController {
     res.setHeader('Content-Type', file.mimeType);
     res.setHeader('Content-Disposition', `attachment; filename="${file.fileName}"`);
     res.setHeader('Content-Length', String(file.size));
-    (file.stream as NodeJS.ReadableStream).pipe(res);
+    const stream = file.stream as NodeJS.ReadableStream;
+    // pipe() tidak meneruskan event "error" stream sumber; tanpa listener ini
+    // Node melempar dan mematikan proses backend.
+    stream.on('error', () => {
+      if (res.headersSent) {
+        res.destroy();
+      } else {
+        res.removeHeader('Content-Disposition');
+        res.removeHeader('Content-Length');
+        res.status(404).json({ success: false, message: 'Artifact not found' });
+      }
+    });
+    stream.pipe(res);
   }
 }
