@@ -134,6 +134,7 @@ export class AgentService {
       order: { publishedAt: 'DESC' },
     });
     if (releases.length === 0) {
+      await this.syncUpdateStatus(device, false);
       return { hasUpdate: false };
     }
     const latest = releases[0];
@@ -147,6 +148,9 @@ export class AgentService {
         hasUpdate = latest.version !== device.applicationVersion;
       }
     }
+
+    await this.syncUpdateStatus(device, hasUpdate);
+
     const deployment = await this.deploymentRepository.findOne({
       where: [
         {
@@ -283,6 +287,20 @@ export class AgentService {
       mimeType: release.artifact.mimeType,
       size: Number(release.artifact.size),
     };
+  }
+
+  /**
+   * Hanya membolak-balik status ONLINE <-> UPDATE_AVAILABLE supaya status
+   * ERROR maupun UPDATING dari deployment tidak tertimpa.
+   */
+  private async syncUpdateStatus(device: Device, hasUpdate: boolean) {
+    const next = hasUpdate ? DeviceStatus.UPDATE_AVAILABLE : DeviceStatus.ONLINE;
+    const isTracked = device.status === DeviceStatus.ONLINE || device.status === DeviceStatus.UPDATE_AVAILABLE;
+    if (!isTracked || device.status === next) {
+      return;
+    }
+    device.status = next;
+    await this.deviceRepository.save(device);
   }
 
   private compareVersions(a: string, b: string): number {
