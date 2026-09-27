@@ -43,10 +43,24 @@ export function DeploymentsPage() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
   const [statusFilter, setStatusFilter] = useState('ALL');
+  // Default mengikuti default backend: createdAt DESC (terbaru dulu).
+  const [sort, setSort] = useState('createdAt');
+  const [order, setOrder] = useState<'ASC' | 'DESC'>('DESC');
+  const handleSort = (key: string) => {
+    if (key === sort) {
+      setOrder((prev) => (prev === 'ASC' ? 'DESC' : 'ASC'));
+    } else {
+      setSort(key);
+      setOrder('ASC');
+    }
+    setPage(1);
+  };
   const { data, isLoading, isError, refetch } = useDeployments({
     status: statusFilter === 'ALL' ? undefined : (statusFilter as DeploymentStatus),
     page,
     limit: limit,
+    sort,
+    order,
   });
 
   return (
@@ -92,8 +106,22 @@ export function DeploymentsPage() {
                 <TableRow>
                   <TableHead>Device</TableHead>
                   <TableHead>Release Version</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created At</TableHead>
+                  <TableHead
+                    sortKey="status"
+                    sortActive={sort === 'status'}
+                    sortDirection={order}
+                    onSort={handleSort}
+                  >
+                    Status
+                  </TableHead>
+                  <TableHead
+                    sortKey="createdAt"
+                    sortActive={sort === 'createdAt'}
+                    sortDirection={order}
+                    onSort={handleSort}
+                  >
+                    Created At
+                  </TableHead>
                   <TableHead className="text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
