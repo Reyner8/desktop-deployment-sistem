@@ -11,6 +11,7 @@ import { DeploymentModule } from './deployments/deployment.module';
 import { AuditModule } from './audit/audit.module';
 import { CiModule } from './ci/ci.module';
 import { HealthModule } from './health/health.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 import { User } from './auth/entities/user.entity';
 import { Device } from './devices/entities/device.entity';
 import { DeviceNetwork } from './devices/entities/device-network.entity';
@@ -67,6 +68,7 @@ import { AddArchivedReleaseStatus1740000000000 } from './database/migrations/174
     AuditModule,
     CiModule,
     HealthModule,
+    DashboardModule,
   ],
 })
 export class AppModule {}
