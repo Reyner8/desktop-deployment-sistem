@@ -40,6 +40,18 @@ export class ArtifactController {
     res.setHeader('Content-Type', artifact.mimeType || 'application/octet-stream');
     res.setHeader('Content-Disposition', `attachment; filename="${artifact.fileName}"`);
     res.setHeader('Content-Length', String(artifact.size));
+    // pipe() tidak meneruskan event "error" stream sumber; tanpa listener ini
+    // Node melempar dan mematikan proses. Terjadi bila file hilang di tengah
+    // proses atau terjadi error I/O saat membaca.
+    stream.on('error', () => {
+      if (res.headersSent) {
+        res.destroy();
+      } else {
+        res.removeHeader('Content-Disposition');
+        res.removeHeader('Content-Length');
+        res.status(404).json({ success: false, message: 'Artifact not found' });
+      }
+    });
     stream.pipe(res);
   }
 }
