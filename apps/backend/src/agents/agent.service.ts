@@ -162,6 +162,18 @@ export class AgentService {
       order: { createdAt: 'ASC' },
     });
 
+    if (deployment && deployment.status === DeploymentStatus.PENDING) {
+      deployment.status = DeploymentStatus.ASSIGNED;
+      await this.deploymentRepository.save(deployment);
+      await this.eventRepository.save(
+        this.eventRepository.create({
+          deployment,
+          status: DeploymentStatus.ASSIGNED,
+          message: 'Deployment assigned to device',
+        }),
+      );
+    }
+
     return {
       hasUpdate,
       latestVersion: latest.version,
