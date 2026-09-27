@@ -99,7 +99,7 @@ export class DeploymentService {
       relations: ['release', 'device', 'events'],
       skip,
       take: limit,
-      order: resolveOrder(query.sortBy, SORTABLE_FIELDS, 'createdAt', query.sortOrder),
+      order: resolveOrder(query.sort, SORTABLE_FIELDS, 'createdAt', query.order),
     });
 
     return {
