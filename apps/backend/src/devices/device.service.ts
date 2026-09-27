@@ -5,6 +5,16 @@ import { Device } from './entities/device.entity';
 import { DeviceNetwork } from './entities/device-network.entity';
 import { QueryDeviceDto } from './dto/query-device.dto';
 import { DeviceStatus, DEVICE_OFFLINE_AFTER_MS } from '@rscb/shared';
+import { resolveOrder } from '../common/sort.util';
+
+/**
+ * Kolom device yang bisa diurutkan.
+ *
+ * 'status' tidak ada di sini karena nilai yang ditampilkan berasal dari
+ * lastSeen, bukan kolomnya (lihat withOfflineStatus), sehingga urutannya akan
+ * menyesatkan. 'ipAddress' berasal dari relasi networks, bukan kolom device.
+ */
+const SORTABLE_FIELDS = ['hostname', 'applicationVersion', 'agentVersion', 'lastSeen'] as const;
 
 @Injectable()
 export class DeviceService {
@@ -37,7 +47,7 @@ export class DeviceService {
       relations: ['networks'],
       skip,
       take: limit,
-      order: { lastSeen: 'DESC' },
+      order: resolveOrder(query.sortBy, SORTABLE_FIELDS, 'lastSeen', query.sortOrder),
     });
 
     return {
