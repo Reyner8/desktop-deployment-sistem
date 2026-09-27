@@ -25,6 +25,10 @@ export class LocalStorage extends ObjectStorage {
     return path.join(this.uploadDir, 'artifacts', key);
   }
 
+  async getSignedUrl(key: string): Promise<string> {
+    return `/api/v1/artifacts/file/${encodeURIComponent(key)}`;
+  }
+
   async delete(key: string): Promise<void> {
     const filePath = this.getFilePath(key);
     if (fs.existsSync(filePath)) {
