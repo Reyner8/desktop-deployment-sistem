@@ -25,6 +25,7 @@ import { CreateInitialSchema1720000000000 } from './database/migrations/17200000
 import { AddUploadSessions1730000000000 } from './database/migrations/1730000000000-AddUploadSessions';
 import { AddArchivedReleaseStatus1740000000000 } from './database/migrations/1740000000000-AddArchivedReleaseStatus';
 import { AddWaitingDeploymentStatus1750000000000 } from './database/migrations/1750000000000-AddWaitingDeploymentStatus';
+import { ReorderWaitingDeploymentStatus1751000000000 } from './database/migrations/1751000000000-ReorderWaitingDeploymentStatus';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { AddWaitingDeploymentStatus1750000000000 } from './database/migrations/1
           AddUploadSessions1730000000000,
           AddArchivedReleaseStatus1740000000000,
           AddWaitingDeploymentStatus1750000000000,
+          ReorderWaitingDeploymentStatus1751000000000,
         ],
         logging: config.get('NODE_ENV') === 'development',
       }),
