@@ -32,6 +32,10 @@ const statusConfig: Record<
   [DeploymentStatus.ASSIGNED]: { label: 'Assigned', variant: 'info', icon: Clock },
   [DeploymentStatus.DOWNLOADING]: { label: 'Downloading', variant: 'info', icon: RefreshCw },
   [DeploymentStatus.VERIFYING]: { label: 'Verifying', variant: 'info', icon: RefreshCw },
+  // ui-design.md bagian 30 menyebut Waiting sebagai status tersendiri.
+  // Bagian 29 melarang UI menampilkan Installing selagi Agent masih
+  // menunggu user menutup SIMRS.
+  [DeploymentStatus.WAITING]: { label: 'Waiting', variant: 'warning', icon: Clock },
   [DeploymentStatus.INSTALLING]: { label: 'Installing', variant: 'info', icon: RefreshCw },
   [DeploymentStatus.STARTING]: { label: 'Starting', variant: 'info', icon: RefreshCw },
   [DeploymentStatus.SUCCESS]: { label: 'Success', variant: 'success', icon: CheckCircle },
