@@ -19,6 +19,7 @@ const eventIcons: Record<string, React.ElementType> = {
   [DeploymentStatus.ASSIGNED]: Clock,
   [DeploymentStatus.DOWNLOADING]: RefreshCw,
   [DeploymentStatus.VERIFYING]: RefreshCw,
+  [DeploymentStatus.WAITING]: Clock,
   [DeploymentStatus.INSTALLING]: RefreshCw,
   [DeploymentStatus.STARTING]: RefreshCw,
   [DeploymentStatus.CANCELLED]: XCircle,
@@ -27,6 +28,7 @@ const eventIcons: Record<string, React.ElementType> = {
 const CANCELLABLE_STATUSES: DeploymentStatus[] = [
   DeploymentStatus.PENDING,
   DeploymentStatus.ASSIGNED,
+  DeploymentStatus.WAITING,
 ];
 
 export function DeploymentDetailPage() {
@@ -93,6 +95,23 @@ export function DeploymentDetailPage() {
           </Button>
         )}
       </div>
+
+      {deployment.status === DeploymentStatus.WAITING && (
+        <Card className="border-yellow-300">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-yellow-700">
+              <Clock className="h-5 w-5" /> Waiting for application to stop
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm">
+              The device has downloaded and verified this release, but SIMRS is
+              still running on it. Installation starts as soon as the
+              application is closed on the device.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {deployment.status === DeploymentStatus.FAILED && deployment.errorMessage && (
         <Card className="border-destructive/40">
