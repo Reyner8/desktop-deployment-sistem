@@ -7,7 +7,9 @@ import {
   HttpCode,
   HttpStatus,
   UnauthorizedException,
+  ForbiddenException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { AuditService } from '../audit/audit.service';
 import { LoginDto } from './dto/login.dto';
@@ -21,6 +23,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly auditService: AuditService,
+    private readonly configService: ConfigService,
   ) {}
 
   @Post('login')
@@ -55,6 +58,22 @@ export class AuthController {
   @Post('register')
   @UseGuards(JwtAuthGuard)
   async register(@Body() dto: RegisterDto, @CurrentUser() user: any) {
+    // Tabel users tidak punya kolom role, jadi otorisasi pembuatan user
+    // dititipkan ke akun bootstrap admin dari ADMIN_USERNAME. Tanpa ini
+    // setiap user yang berhasil login otomatis mendapat hak membuat user
+    // lain. Model role yang sungguhan perlu keputusan terpisah karena
+    // tidak ada taksonomi role di dokumentasi.
+    const adminUsername = this.configService.get<string>('ADMIN_USERNAME') || 'admin';
+    if (user?.username !== adminUsername) {
+      await this.auditService.log({
+        actor: user?.username || 'unknown',
+        action: AuditAction.USER_REGISTERED,
+        target: 'USER',
+        details: { username: dto.username, reason: 'not authorized' },
+        result: 'FAILURE',
+      });
+      throw new ForbiddenException('Only the administrator account may create users');
+    }
     const created = await this.authService.register(dto.username, dto.password, dto.displayName);
     await this.auditService.log({
       actor: user?.username || 'system',
