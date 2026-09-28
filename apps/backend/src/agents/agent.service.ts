@@ -45,6 +45,12 @@ export class AgentService {
     let device = await this.deviceRepository.findOne({
       where: { deviceId: dto.deviceId },
     });
+    // Token selalu dibuat baru pada setiap registrasi. Endpoint ini tidak
+    // memakai guard, jadi apabila device yang sudah ada tetap memakai token
+    // lamanya, siapa pun yang mengetahui deviceId bisa mengambil token
+    // tersebut dari response dan berpura-pura menjadi device itu. Rotasi
+    // memastikan response hanya pernah berisi token yang baru dibuat.
+    const tokenRotated = Boolean(device);
     if (device) {
       device.hostname = dto.hostname;
       if (dto.os) {
@@ -54,9 +60,7 @@ export class AgentService {
       if (dto.applicationVersion) {
         device.applicationVersion = dto.applicationVersion;
       }
-      if (!device.token) {
-        device.token = token;
-      }
+      device.token = token;
       device.lastSeen = new Date();
       device.status = DeviceStatus.ONLINE;
       device = await this.deviceRepository.save(device);
@@ -90,6 +94,7 @@ export class AgentService {
         hostname: device.hostname,
         os: device.os,
         agentVersion: device.agentVersion,
+        tokenRotated,
       },
       result: 'SUCCESS',
     });
