@@ -53,11 +53,17 @@ audit_logs ────────────┘   │
 | ASSIGNED    | Task diberikan ke agent                      |
 | DOWNLOADING | Agent mengunduh artifact                     |
 | VERIFYING   | Agent memverifikasi SHA-256                  |
+| WAITING     | Artefak siap, tapi aplikasi masih berjalan   |
 | INSTALLING  | Agent melakukan instalasi                    |
 | STARTING    | Agent menjalankan kembali aplikasi           |
 | SUCCESS     | Instalasi berhasil                           |
 | FAILED      | Proses gagal                                 |
 | CANCELLED   | Deployment dibatalkan oleh admin             |
+
+Urutan nilai enum mengikuti alur lifecycle, dan Postgres mengurutkan kolom
+enum berdasarkan posisi nilai. Karena itu `WAITING` disisipkan sebelum
+`INSTALLING` lewat migration `ReorderWaitingDeploymentStatus`, bukan hanya
+ditambahkan di akhir.
 
 ### upload_session_status
 
