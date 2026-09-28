@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { v4 as uuid } from 'uuid';
@@ -188,13 +188,25 @@ export class AgentService {
     };
   }
 
-  async reportDeploymentStatus(deploymentId: string, dto: DeploymentStatusDto) {
+  async reportDeploymentStatus(
+    deploymentId: string,
+    deviceId: string,
+    dto: DeploymentStatusDto,
+  ) {
     const deployment = await this.deploymentRepository.findOne({
       where: { id: deploymentId },
       relations: ['events', 'device', 'release'],
     });
     if (!deployment) {
       throw new NotFoundException('Deployment not found');
+    }
+    // Token device yang dipakai guard harus dimiliki device tujuan deployment.
+    // Tanpa cek ini agent mana pun yang tahu id deployment dapat menulis status
+    // deployment device lain, termasuk menandainya SUCCESS atau FAILED.
+    if (deployment.device.deviceId !== deviceId) {
+      throw new ForbiddenException(
+        'This deployment does not belong to the authenticated device',
+      );
     }
     const newStatus = dto.status as DeploymentStatus;
     const validNext = deploymentTransitions.get(deployment.status) || [];

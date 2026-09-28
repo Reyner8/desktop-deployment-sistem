@@ -46,8 +46,13 @@ export class AgentController {
 
   @Post('deployments/:id/status')
   @UseGuards(DeviceAgentGuard)
-  async reportStatus(@Param('id') id: string, @Body() dto: DeploymentStatusDto) {
-    const result = await this.agentService.reportDeploymentStatus(id, dto);
+  async reportStatus(
+    @Param('id') id: string,
+    @Req() request: Request,
+    @Body() dto: DeploymentStatusDto,
+  ) {
+    const device = (request as any).device as { deviceId: string };
+    const result = await this.agentService.reportDeploymentStatus(id, device.deviceId, dto);
     return { success: true, data: result };
   }
 
