@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { DeployTargetInfo } from '@rscb/shared';
 import { DeviceStatus, ReleaseStatus } from '@rscb/shared';
 import { useDevices } from '@/lib/query/devices';
@@ -35,9 +35,18 @@ export function NewDeploymentPage() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [selectedReleaseId, setSelectedReleaseId] = useState<string>('');
-  const [selectedDeviceIds, setSelectedDeviceIds] = useState<Set<string>>(new Set());
   const [deviceSearch, setDeviceSearch] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [searchParams] = useSearchParams();
+  // Halaman Devices meneruskan device yang sudah dipilih lewat query param
+  // devices. Nilainya dibaca sekali saat komponen pertama kali dimuat supaya
+  // pilihan operator berikutnya tidak ditimpa.
+  const preselectedIds = (searchParams.get('devices') || '')
+    .split(',')
+    .filter(Boolean);
+  const [selectedDeviceIds, setSelectedDeviceIds] = useState<Set<string>>(
+    () => new Set(preselectedIds),
+  );
   const createDeployment = useCreateDeployment();
 
   const { data: releases, isLoading: loadingReleases } = useReleases({
@@ -190,6 +199,13 @@ export function NewDeploymentPage() {
             </div>
           </CardHeader>
           <CardContent>
+            {preselectedIds.length > 0 && (
+              <p className="mb-3 text-sm text-muted-foreground">
+                {preselectedIds.length} device{preselectedIds.length > 1 ? 's were' : ' was'}{' '}
+                carried over from the Devices page. Adjust the selection below
+                if needed.
+              </p>
+            )}
             {loadingDevices ? (
               <div className="space-y-2">
                 {Array.from({ length: 5 }).map((_, i) => (
