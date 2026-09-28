@@ -24,6 +24,7 @@ import { UploadSession } from './ci/entities/upload-session.entity';
 import { CreateInitialSchema1720000000000 } from './database/migrations/1720000000000-CreateInitialSchema';
 import { AddUploadSessions1730000000000 } from './database/migrations/1730000000000-AddUploadSessions';
 import { AddArchivedReleaseStatus1740000000000 } from './database/migrations/1740000000000-AddArchivedReleaseStatus';
+import { AddWaitingDeploymentStatus1750000000000 } from './database/migrations/1750000000000-AddWaitingDeploymentStatus';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { AddArchivedReleaseStatus1740000000000 } from './database/migrations/174
           CreateInitialSchema1720000000000,
           AddUploadSessions1730000000000,
           AddArchivedReleaseStatus1740000000000,
+          AddWaitingDeploymentStatus1750000000000,
         ],
         logging: config.get('NODE_ENV') === 'development',
       }),
