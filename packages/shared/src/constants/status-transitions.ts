@@ -14,7 +14,17 @@ export const deploymentTransitions: Map<DeploymentStatus, DeploymentStatus[]> = 
   [DeploymentStatus.PENDING, [DeploymentStatus.ASSIGNED, DeploymentStatus.CANCELLED]],
   [DeploymentStatus.ASSIGNED, [DeploymentStatus.DOWNLOADING, DeploymentStatus.CANCELLED]],
   [DeploymentStatus.DOWNLOADING, [DeploymentStatus.VERIFYING, DeploymentStatus.FAILED]],
-  [DeploymentStatus.VERIFYING, [DeploymentStatus.INSTALLING, DeploymentStatus.FAILED]],
+  // VERIFYING masih boleh langsung ke INSTALLING supaya agent lama yang tidak
+  // mengirim WAITING tetap kompatibel. Agent baru mengirim WAITING lebih dulu
+  // ketika SIMRS masih berjalan.
+  [
+    DeploymentStatus.VERIFYING,
+    [DeploymentStatus.WAITING, DeploymentStatus.INSTALLING, DeploymentStatus.FAILED],
+  ],
+  [
+    DeploymentStatus.WAITING,
+    [DeploymentStatus.INSTALLING, DeploymentStatus.FAILED, DeploymentStatus.CANCELLED],
+  ],
   [DeploymentStatus.INSTALLING, [DeploymentStatus.STARTING, DeploymentStatus.FAILED]],
   [DeploymentStatus.STARTING, [DeploymentStatus.SUCCESS, DeploymentStatus.FAILED]],
   [DeploymentStatus.SUCCESS, []],
