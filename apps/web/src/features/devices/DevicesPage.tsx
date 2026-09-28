@@ -24,7 +24,8 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { PaginationBar } from '@/components/ui/pagination-bar';
 import { ErrorState } from '@/components/ui/error-state';
-import { Eye, Monitor, Search } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Eye, Monitor, Rocket, Search, X } from 'lucide-react';
 
 const statusOptions: Array<'ALL' | DeviceStatus> = [
   'ALL',
@@ -44,6 +45,7 @@ export function DevicesPage() {
   const [sort, setSort] = useState('lastSeen');
   const [order, setOrder] = useState<'ASC' | 'DESC'>('DESC');
   const [searchParams, setSearchParams] = useSearchParams();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const statusFilter = searchParams.get('status') || 'ALL';
   const setStatusFilter = (value: string) => {
     setSearchParams(value === 'ALL' ? {} : { status: value }, { replace: true });
@@ -66,6 +68,36 @@ export function DevicesPage() {
     sort,
     order,
   });
+
+  const visibleDevices = data?.data || [];
+  const allVisibleSelected =
+    visibleDevices.length > 0 && visibleDevices.every((d) => selectedIds.has(d.id));
+
+  const toggleDevice = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      visibleDevices.forEach((d) => {
+        if (allVisibleSelected) next.delete(d.id);
+        else next.add(d.id);
+      });
+      return next;
+    });
+  };
+
+  const startBulkDeployment = () => {
+    // Pilihan diteruskan lewat query param supaya wizard deployment baru
+    // bisa langsung memakai device yang sama, dan URL tetap bisa dibagikan.
+    navigate(`/deployments/new?devices=${Array.from(selectedIds).join(',')}`);
+  };
 
   return (
     <div className="space-y-4">
@@ -99,6 +131,22 @@ export function DevicesPage() {
         </div>
       </div>
 
+      {selectedIds.size > 0 && (
+        <div className="flex items-center justify-between rounded-md border bg-muted/40 px-4 py-2">
+          <span className="text-sm">
+            {selectedIds.size} device{selectedIds.size > 1 ? 's' : ''} selected
+          </span>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
+              <X className="mr-2 h-4 w-4" /> Clear
+            </Button>
+            <Button size="sm" onClick={startBulkDeployment}>
+              <Rocket className="mr-2 h-4 w-4" /> Deploy selected
+            </Button>
+          </div>
+        </div>
+      )}
+
       <Card>
         <CardContent className="pt-6">
           {isError ? (
@@ -111,6 +159,13 @@ export function DevicesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={allVisibleSelected}
+                      onCheckedChange={toggleSelectAll}
+                      aria-label="Pilih semua device di halaman ini"
+                    />
+                  </TableHead>
                   <TableHead
                     sortKey="hostname"
                     sortActive={sort === 'hostname'}
@@ -152,7 +207,7 @@ export function DevicesPage() {
                 {isLoading ? (
                   Array.from({ length: 8 }).map((_, i) => (
                     <TableRow key={i}>
-                      {Array.from({ length: 7 }).map((_, j) => (
+                      {Array.from({ length: 8 }).map((_, j) => (
                         <TableCell key={j}>
                           <Skeleton className="h-5 w-20" />
                         </TableCell>
@@ -162,6 +217,13 @@ export function DevicesPage() {
                 ) : data?.data?.length ? (
                   data.data.map((device) => (
                     <TableRow key={device.id}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedIds.has(device.id)}
+                          onCheckedChange={() => toggleDevice(device.id)}
+                          aria-label={`Pilih ${device.hostname}`}
+                        />
+                      </TableCell>
                       <TableCell className="font-medium">{device.hostname}</TableCell>
                       <TableCell>{device.ipAddress}</TableCell>
                       <TableCell>{device.applicationVersion || '-'}</TableCell>
@@ -184,7 +246,7 @@ export function DevicesPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                       <Monitor className="mx-auto h-8 w-8 mb-2" />
                       No devices found
                     </TableCell>
