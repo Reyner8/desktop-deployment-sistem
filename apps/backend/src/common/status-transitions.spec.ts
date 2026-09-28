@@ -50,4 +50,33 @@ describe('deployment transitions', () => {
     expect(deploymentTransitions.get(DeploymentStatus.SUCCESS)).toEqual([]);
     expect(deploymentTransitions.get(DeploymentStatus.CANCELLED)).toEqual([]);
   });
+
+  it('allows VERIFYING -> WAITING dan WAITING -> INSTALLING', () => {
+    expect(deploymentTransitions.get(DeploymentStatus.VERIFYING)).toContain(
+      DeploymentStatus.WAITING,
+    );
+    expect(deploymentTransitions.get(DeploymentStatus.WAITING)).toContain(
+      DeploymentStatus.INSTALLING,
+    );
+  });
+
+  // Agent lama yang tidak mengirim WAITING harus tetap bisa jalan.
+  it('tetap allows VERIFYING -> INSTALLING untuk agent lama', () => {
+    expect(deploymentTransitions.get(DeploymentStatus.VERIFYING)).toContain(
+      DeploymentStatus.INSTALLING,
+    );
+  });
+
+  it('allows cancel dari WAITING supaya tidak terjebak permanen', () => {
+    expect(deploymentTransitions.get(DeploymentStatus.WAITING)).toContain(
+      DeploymentStatus.CANCELLED,
+    );
+  });
+
+  it('rejects WAITING sebagai status awal', () => {
+    expect(deploymentTransitions.has(DeploymentStatus.PENDING)).toBe(true);
+    expect(deploymentTransitions.get(DeploymentStatus.PENDING)).not.toContain(
+      DeploymentStatus.WAITING,
+    );
+  });
 });
