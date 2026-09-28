@@ -167,11 +167,27 @@ DRAFT → UPLOADING → VERIFYING → PUBLISHED → ARCHIVED
 
 ```
 PENDING → ASSIGNED → DOWNLOADING → VERIFYING → INSTALLING → STARTING → SUCCESS
-   ↓         ↓            ↓              ↓           ↓
-CANCELLED  CANCELLED    FAILED         FAILED      FAILED
-                           ↓
-                        CANCELLED
 ```
+
+Transisi lain yang diizinkan:
+
+| Dari              | Ke                                        |
+| ----------------- | ----------------------------------------- |
+| PENDING           | ASSIGNED, CANCELLED                       |
+| ASSIGNED          | DOWNLOADING, CANCELLED                    |
+| DOWNLOADING       | VERIFYING, FAILED                         |
+| VERIFYING         | WAITING, INSTALLING, FAILED               |
+| WAITING           | INSTALLING, FAILED, CANCELLED             |
+| INSTALLING        | STARTING, FAILED                          |
+| STARTING          | SUCCESS, FAILED                           |
+| SUCCESS           | (terminal)                                |
+| FAILED            | CANCELLED                                 |
+| CANCELLED         | (terminal)                                |
+
+`WAITING` dipakai Agent ketika artefak sudah terunduh dan terverifikasi
+tetapi SIMRS masih berjalan, sehingga instalasi ditunda sampai user menutup
+aplikasi. Jalur langsung `VERIFYING → INSTALLING` tetap tersedia supaya
+Agent lama yang tidak mengirim status tersebut tetap kompatibel.
 
 ## Development Commands
 
