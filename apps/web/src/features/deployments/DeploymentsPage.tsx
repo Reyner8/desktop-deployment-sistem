@@ -31,6 +31,7 @@ const statusOptions: Array<'ALL' | DeploymentStatus> = [
   DeploymentStatus.ASSIGNED,
   DeploymentStatus.DOWNLOADING,
   DeploymentStatus.VERIFYING,
+  DeploymentStatus.WAITING,
   DeploymentStatus.INSTALLING,
   DeploymentStatus.STARTING,
   DeploymentStatus.SUCCESS,
