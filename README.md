@@ -201,6 +201,14 @@ docker compose down -v && docker compose up -d --build
 - Ganti semua default secret sebelum production
 - Agent tidak memiliki akses ke database atau MinIO credential
 - Gunakan HTTPS di production
+- `POST /api/v1/agents/register` memutar token device pada setiap
+  registrasi. Agent harus memakai token dari response registrasi
+  terakhirnya karena token sebelumnya langsung tidak berlaku lagi
+- Agent hanya boleh melaporkan status deployment milik device-nya sendiri.
+  Status deployment device lain akan ditolak dengan `403`
+- Object key artifact divalidasi di sisi input (upload CI) dan containment
+  di dalam driver storage, sehingga upload tidak dapat menulis ke luar
+  `UPLOAD_DIR`
 
 ## Lisensi
 
