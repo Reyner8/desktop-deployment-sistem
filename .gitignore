@@ -34,3 +34,5 @@ AGENTS.md
 architecture.md
 design-patterns.md
 ui-design.md
+# Ignore local upload directory (artifact storage when STORAGE_DRIVER=local)
+apps/backend/uploads/
