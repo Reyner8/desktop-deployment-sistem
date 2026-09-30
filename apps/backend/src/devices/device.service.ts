@@ -47,6 +47,18 @@ export class DeviceService {
       relations: ['networks'],
       skip,
       take: limit,
+      select: {
+        id: true,
+        deviceId: true,
+        hostname: true,
+        os: true,
+        agentVersion: true,
+        applicationVersion: true,
+        status: true,
+        lastSeen: true,
+        createdAt: true,
+        updatedAt: true,
+      },
       order: resolveOrder(query.sort, SORTABLE_FIELDS, 'lastSeen', query.order),
     });
 
@@ -63,6 +75,18 @@ export class DeviceService {
     const device = await this.deviceRepository.findOne({
       where: { id },
       relations: ['networks'],
+      select: {
+        id: true,
+        deviceId: true,
+        hostname: true,
+        os: true,
+        agentVersion: true,
+        applicationVersion: true,
+        status: true,
+        lastSeen: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
     if (!device) {
       throw new NotFoundException('Device not found');
