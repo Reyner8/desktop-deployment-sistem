@@ -9,6 +9,7 @@ import {
   UploadedFile,
 } from '@nestjs/common';
 import { Response } from 'express';
+import * as path from 'path';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ArtifactService } from './artifact.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -38,7 +39,7 @@ export class ArtifactController {
     const artifact = await this.artifactService.getArtifactByKey(key);
     const stream = await this.artifactService.getReadStream(artifact);
     res.setHeader('Content-Type', artifact.mimeType || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename="${artifact.fileName}"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${path.basename(artifact.fileName, path.extname(artifact.fileName))}.zip"`);
     res.setHeader('Content-Length', String(artifact.size));
     // pipe() tidak meneruskan event "error" stream sumber; tanpa listener ini
     // Node melempar dan mematikan proses. Terjadi bila file hilang di tengah
