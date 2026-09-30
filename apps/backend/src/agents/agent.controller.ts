@@ -11,6 +11,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import * as path from 'path';
 import { AgentService } from './agent.service';
 import { DeviceAgentGuard } from './device-agent.guard';
 import { RegisterAgentDto } from './dto/register-agent.dto';
@@ -68,7 +69,7 @@ export class AgentController {
   async downloadFile(@Param('releaseId') releaseId: string, @Res() res: Response) {
     const file = await this.agentService.getArtifactFile(releaseId);
     res.setHeader('Content-Type', file.mimeType);
-    res.setHeader('Content-Disposition', `attachment; filename="${file.fileName}"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${path.basename(file.fileName)}"`);
     res.setHeader('Content-Length', String(file.size));
     const stream = file.stream as NodeJS.ReadableStream;
     // pipe() tidak meneruskan event "error" stream sumber; tanpa listener ini
