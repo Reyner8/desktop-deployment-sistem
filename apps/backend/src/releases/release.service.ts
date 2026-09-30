@@ -75,6 +75,24 @@ export class ReleaseService {
       order: resolveOrder(query.sort, SORTABLE_FIELDS, 'createdAt', query.order),
     });
 
+    // Sort versi in-memory karena PostgreSQL mengurutkan secara leksikografis
+    // (9.9.10 akan sebelum 9.9.2). Kita bagi versi menjadi 3 part major/minor/patch
+    // dan banding integer, lalu string untuk suffix jika ada.
+    const versionCompare = (a: string, b: string): number => {
+      const parsePart = (v: string) => {
+        const parts = v.split('.').map((p) => parseInt(p, 10) || 0);
+        return parts.length > 0 ? parts : [0];
+      };
+      const aParts = parsePart(a);
+      const bParts = parsePart(b);
+      for (let i = 0; i < 3; i++) {
+        if (aParts[i] > bParts[i]) return 1;
+        if (aParts[i] < bParts[i]) return -1;
+      }
+      return a.localeCompare(b);
+    };
+    data.sort((a, b) => versionCompare(a.version, b.version));
+
     const items = await Promise.all(data.map((release) => this.withDownloadUrl(release)));
 
     return {
