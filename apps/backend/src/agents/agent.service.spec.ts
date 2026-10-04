@@ -14,7 +14,10 @@ function createService(opts: { existing?: any } = {}) {
     create: jest.fn().mockImplementation((d: any) => d),
     save: jest.fn().mockResolvedValue([]),
   };
-  const releaseRepository = { find: jest.fn().mockResolvedValue([]) };
+  const releaseRepository = {
+    find: jest.fn().mockResolvedValue([]),
+    findOne: jest.fn().mockResolvedValue(null),
+  };
   const artifactRepository = {};
   const deploymentRepository = {
     findOne: jest.fn().mockResolvedValue(opts.existing?.__deployment ?? null),
@@ -25,7 +28,10 @@ function createService(opts: { existing?: any } = {}) {
     save: jest.fn().mockImplementation(async (d: any) => d),
   };
   const auditService = { log: jest.fn().mockResolvedValue(undefined) };
-  const artifactService = {};
+  const artifactService = {
+    isLocalStorage: jest.fn().mockReturnValue(false),
+    getDownloadUrl: jest.fn().mockResolvedValue('http://minio/presigned'),
+  };
 
   const service = new AgentService(
     deviceRepository as any,
@@ -38,7 +44,16 @@ function createService(opts: { existing?: any } = {}) {
     auditService as any,
   );
 
-  return { service, deviceRepository, deploymentRepository, eventRepository, auditService };
+  return {
+    service,
+    deviceRepository,
+    networkRepository,
+    releaseRepository,
+    deploymentRepository,
+    eventRepository,
+    auditService,
+    artifactService,
+  };
 }
 describe('AgentService.register', () => {
   it('membuat token baru untuk device yang baru terdaftar', async () => {
@@ -168,5 +183,52 @@ describe('AgentService.reportDeploymentStatus', () => {
         status: DeploymentStatus.SUCCESS,
       } as any),
     ).rejects.toThrow(/Cannot transition/);
+  });
+});
+
+describe('AgentService.getDownloadUrl', () => {
+  // Regresi: agent wajib memverifikasi SHA-256 setelah download, tetapi
+  // response download-url tidak membawa checksum sehingga verifikasi
+  // tidak mungkin dilakukan dari sisi agent.
+  it('menyertakan fileName, size, dan sha256 artifact pada response (driver minio)', async () => {
+    const { service, releaseRepository, artifactService } = createService();
+    releaseRepository.findOne.mockResolvedValue({
+      id: 'rel-1',
+      status: 'PUBLISHED',
+      artifact: {
+        fileName: 'simrs-1.5.0.zip',
+        size: '524288000',
+        sha256: 'a'.repeat(64),
+      },
+    });
+
+    const result = await service.getDownloadUrl('rel-1');
+
+    expect(result.downloadUrl).toBe('http://minio/presigned');
+    expect(result.fileName).toBe('simrs-1.5.0.zip');
+    expect(result.size).toBe(524288000);
+    expect(result.sha256).toBe('a'.repeat(64));
+    expect(artifactService.getDownloadUrl).toHaveBeenCalled();
+  });
+
+  it('menyertakan metadata artifact pada jalur storage lokal', async () => {
+    const { service, releaseRepository, artifactService } = createService();
+    artifactService.isLocalStorage.mockReturnValue(true);
+    releaseRepository.findOne.mockResolvedValue({
+      id: 'rel-1',
+      status: 'PUBLISHED',
+      artifact: {
+        fileName: 'simrs-2.0.0.zip',
+        size: 1024,
+        sha256: 'b'.repeat(64),
+      },
+    });
+
+    const result = await service.getDownloadUrl('rel-1');
+
+    expect(result.downloadUrl).toBe('/api/v1/agents/artifacts/rel-1/file');
+    expect(result.fileName).toBe('simrs-2.0.0.zip');
+    expect(result.size).toBe(1024);
+    expect(result.sha256).toBe('b'.repeat(64));
   });
 });
