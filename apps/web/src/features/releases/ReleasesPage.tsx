@@ -151,6 +151,7 @@ export function ReleasesPage() {
                   >
                     Application
                   </TableHead>
+                  <TableHead>Artifact</TableHead>
                   <TableHead>Size</TableHead>
                   <TableHead>SHA-256</TableHead>
                   <TableHead
@@ -184,7 +185,7 @@ export function ReleasesPage() {
                 {isLoading ? (
                   Array.from({ length: 8 }).map((_, i) => (
                     <TableRow key={i}>
-                      {Array.from({ length: 8 }).map((_, j) => (
+                      {Array.from({ length: 9 }).map((_, j) => (
                         <TableCell key={j}>
                           <Skeleton className="h-5 w-20" />
                         </TableCell>
@@ -196,6 +197,16 @@ export function ReleasesPage() {
                     <TableRow key={release.id}>
                       <TableCell className="font-medium">{release.version}</TableCell>
                       <TableCell>{release.application}</TableCell>
+                      <TableCell className="max-w-[180px] truncate" title={release.fileName}>
+                        {release.fileName ? (
+                          <span className="flex items-center gap-1">
+                            <Package className="shrink-0 h-3.5 w-3.5 text-muted-foreground" />
+                            {release.fileName}
+                          </span>
+                        ) : (
+                          '-'
+                        )}
+                      </TableCell>
                       <TableCell>
                         {release.fileSize
                           ? `${(release.fileSize / 1024 / 1024).toFixed(1)} MB`
@@ -253,7 +264,7 @@ export function ReleasesPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                       <Package className="mx-auto h-8 w-8 mb-2" />
                       No releases found
                     </TableCell>
