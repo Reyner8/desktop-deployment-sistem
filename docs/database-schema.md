@@ -211,8 +211,12 @@ Sesi chunked upload dari CI/CD. Satu sesi terhubung ke satu release
 Skema diprovisiing otomatis oleh backend saat container pertama kali start:
 
 1. PostgreSQL diinisialisasi dengan `CREATE EXTENSION uuid-ossp` via `init.sql`
-2. Backend menjalankan TypeORM migrations: `CreateInitialSchema1720000000000`,
-   `AddUploadSessions1730000000000`, `AddArchivedReleaseStatus1740000000000`
+2. Backend menjalankan TypeORM migrations secara berurutan:
+   `CreateInitialSchema1720000000000`, `AddUploadSessions1730000000000`,
+   `AddArchivedReleaseStatus1740000000000`,
+   `AddWaitingDeploymentStatus1750000000000`, dan
+   `ReorderWaitingDeploymentStatus1751000000000` (menyisipkan `WAITING`
+   sebelum `INSTALLING` pada enum `deployment_status`)
 3. Semua tabel + enum + index dibuat otomatis; total 9 tabel + 4 enum
 
 ### Reset Database
