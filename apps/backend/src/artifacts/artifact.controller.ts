@@ -7,6 +7,7 @@ import {
   UseGuards,
   UseInterceptors,
   UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
 import { Response } from 'express';
 import * as path from 'path';
@@ -28,7 +29,7 @@ export class ArtifactController {
     @CurrentUser() user: any,
   ) {
     if (!file) {
-      return { success: false, message: 'File is required' };
+      throw new BadRequestException('File is required');
     }
     const data = await this.artifactService.uploadFile(releaseId, file, user?.username);
     return { success: true, data };
