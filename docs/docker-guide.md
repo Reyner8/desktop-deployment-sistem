@@ -19,11 +19,10 @@ docker compose up -d --build
 
 ### Credentials
 
-| Service    | Username   | Password     | Database/Console |
-| ---------- | ---------- | ------------ | ---------------- |
-| PostgreSQL | postgres   | Tigerlake.85 | rscb_deployment  |
-| MinIO      | minioadmin | minioadmin   | rscb-artifacts   |
-| Admin      | admin      | admin123     | Dashboard login  |
+Nilai credential development tidak ditulis ulang di dokumen ini — lihat
+`docker-compose.yml` (dev) untuk password PostgreSQL, MinIO, dan admin
+dashboard yang sedang aktif. Ganti semuanya di production via `.env`
+(lihat bagian Production di bawah).
 
 ### Akses
 
