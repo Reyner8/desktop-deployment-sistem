@@ -279,11 +279,19 @@ export class AgentService {
     if (!release || !release.artifact) {
       throw new NotFoundException('Release or artifact not found');
     }
+    // Agent wajib memverifikasi SHA-256 setelah download (AGENTS.md bagian
+    // Checksum), jadi checksum dan ukuran harus ikut response ini — tidak
+    // ada endpoint agent lain yang mengeksposnya.
+    const artifactInfo = {
+      fileName: release.artifact.fileName,
+      size: Number(release.artifact.size),
+      sha256: release.artifact.sha256,
+    };
     if (this.artifactService.isLocalStorage()) {
-      return { downloadUrl: `/api/v1/agents/artifacts/${releaseId}/file` };
+      return { downloadUrl: `/api/v1/agents/artifacts/${releaseId}/file`, ...artifactInfo };
     }
     const url = await this.artifactService.getDownloadUrl(release.artifact);
-    return { downloadUrl: url };
+    return { downloadUrl: url, ...artifactInfo };
   }
 
   async getArtifactFile(releaseId: string) {
