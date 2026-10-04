@@ -1,6 +1,14 @@
 import { useState } from 'react';
+import { AuditAction } from '@rscb/shared';
 import { useAuditLogs } from '@/lib/query/audit';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   Table,
@@ -16,10 +24,13 @@ import { PaginationBar } from '@/components/ui/pagination-bar';
 import { ErrorState } from '@/components/ui/error-state';
 import { ScrollText, Search } from 'lucide-react';
 
+const humanizeAction = (action: string) => action.replace(/_/g, ' ').toLowerCase();
+
 export function AuditPage() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
   const [actorFilter, setActorFilter] = useState('');
+  const [actionFilter, setActionFilter] = useState('ALL');
   // Default mengikuti default backend: timestamp DESC (terbaru dulu).
   const [sort, setSort] = useState('timestamp');
   const [order, setOrder] = useState<'ASC' | 'DESC'>('DESC');
@@ -34,6 +45,7 @@ export function AuditPage() {
   };
   const { data, isLoading, isError, refetch } = useAuditLogs({
     actor: actorFilter || undefined,
+    action: actionFilter === 'ALL' ? undefined : (actionFilter as AuditAction),
     page,
     limit,
     sort,
@@ -44,17 +56,38 @@ export function AuditPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Audit Logs</h2>
-        <div className="relative">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Filter by actor..."
-            value={actorFilter}
-            onChange={(e) => {
-              setActorFilter(e.target.value);
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Filter by actor..."
+              value={actorFilter}
+              onChange={(e) => {
+                setActorFilter(e.target.value);
+                setPage(1);
+              }}
+              className="pl-8 w-60"
+            />
+          </div>
+          <Select
+            value={actionFilter}
+            onValueChange={(v) => {
+              setActionFilter(v);
               setPage(1);
             }}
-            className="pl-8 w-60"
-          />
+          >
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All Actions</SelectItem>
+              {Object.values(AuditAction).map((action) => (
+                <SelectItem key={action} value={action}>
+                  <span className="capitalize">{humanizeAction(action)}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -128,9 +161,7 @@ export function AuditPage() {
                     <TableRow key={log.id}>
                       <TableCell className="font-medium">{log.actor}</TableCell>
                       <TableCell>
-                        <span className="capitalize">
-                          {log.action.replace(/_/g, ' ').toLowerCase()}
-                        </span>
+                        <span className="capitalize">{humanizeAction(log.action)}</span>
                       </TableCell>
                       <TableCell className="text-muted-foreground">{log.target}</TableCell>
                       <TableCell>
