@@ -1,4 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { UserRole } from '@rscb/shared';
 
 @Entity('users')
 export class User {
@@ -16,6 +17,12 @@ export class User {
 
   @Column({ name: 'is_active', default: true })
   isActive: boolean;
+
+  // Role sederhana dua tingkat (keputusan 2026-10-24): ADMIN mengelola user
+  // dan konfigurasi; OPERATOR menjalankan operasi harian (release,
+  // deployment) tanpa hak administrasi.
+  @Column({ type: 'enum', enum: UserRole, default: UserRole.OPERATOR })
+  role: UserRole;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

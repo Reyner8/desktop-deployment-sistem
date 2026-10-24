@@ -1,9 +1,10 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Not } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import { UserRole } from '@rscb/shared';
 import { User } from './entities/user.entity';
 
 @Injectable()
@@ -28,13 +29,18 @@ export class AuthService {
   }
 
   async login(user: any) {
-    const payload = { username: user.username, sub: user.id };
+    const payload = { username: user.username, sub: user.id, role: user.role };
     return {
       accessToken: this.jwtService.sign(payload),
     };
   }
 
-  async register(username: string, password: string, displayName?: string): Promise<User> {
+  async register(
+    username: string,
+    password: string,
+    displayName?: string,
+    role: UserRole = UserRole.OPERATOR,
+  ): Promise<User> {
     const existing = await this.userRepository.findOne({ where: { username } });
     if (existing) {
       throw new ConflictException('Username already exists');
@@ -46,8 +52,51 @@ export class AuthService {
       password: hashedPassword,
       displayName: displayName || username,
       isActive: true,
+      role,
     });
     return this.userRepository.save(user);
+  }
+
+  async listUsers(): Promise<User[]> {
+    return this.userRepository.find({ order: { createdAt: 'ASC' } });
+  }
+
+  async updateUserRole(id: string, role: UserRole): Promise<User> {
+    const user = await this.userRepository.findOne({ where: { id } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    if (user.role === UserRole.ADMIN && role !== UserRole.ADMIN) {
+      // Tanpa proteksi ini operator bisa mencabut satu-satunya ADMIN dan
+      // tidak ada lagi yang dapat mengelola user (deadlock administratif).
+      const otherAdmins = await this.userRepository.count({
+        where: { role: UserRole.ADMIN, id: Not(id) },
+      });
+      if (otherAdmins === 0) {
+        throw new BadRequestException('Cannot demote the last administrator');
+      }
+    }
+    user.role = role;
+    return this.userRepository.save(user);
+  }
+
+  async deleteUser(id: string, actingUsername: string): Promise<void> {
+    const user = await this.userRepository.findOne({ where: { id } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    if (user.username === actingUsername) {
+      throw new BadRequestException('Cannot delete your own account');
+    }
+    if (user.role === UserRole.ADMIN) {
+      const otherAdmins = await this.userRepository.count({
+        where: { role: UserRole.ADMIN, id: Not(id) },
+      });
+      if (otherAdmins === 0) {
+        throw new BadRequestException('Cannot delete the last administrator');
+      }
+    }
+    await this.userRepository.remove(user);
   }
 
   async getProfile(id: string): Promise<User> {
@@ -88,6 +137,7 @@ export class AuthService {
           password: hashedPassword,
           displayName: 'Administrator',
           isActive: true,
+          role: UserRole.ADMIN,
         }),
       );
       console.log(`Admin user "${username}" seeded`);
