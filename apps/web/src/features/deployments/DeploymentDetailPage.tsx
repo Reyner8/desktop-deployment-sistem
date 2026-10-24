@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { DeploymentStatus } from '@rscb/shared';
-import { useDeployment, useCancelDeployment } from '@/lib/query/deployments';
+import { useDeployment, useCancelDeployment, useRetryDeployment } from '@/lib/query/deployments';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,8 +33,10 @@ const CANCELLABLE_STATUSES: DeploymentStatus[] = [
 
 export function DeploymentDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { data: deployment, isLoading, isError, refetch } = useDeployment(id!);
   const cancelDeployment = useCancelDeployment();
+  const retryDeployment = useRetryDeployment();
   const [cancelOpen, setCancelOpen] = useState(false);
 
   const handleCancel = async () => {
@@ -46,6 +48,21 @@ export function DeploymentDetailPage() {
     } catch (error) {
       toast({
         title: 'Failed to cancel',
+        description: getErrorMessage(error),
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleRetry = async () => {
+    if (!id) return;
+    try {
+      const created = await retryDeployment.mutateAsync(id);
+      toast({ title: 'Deployment ulang dibuat', variant: 'success' });
+      navigate(`/deployments/${created.id}`);
+    } catch (error) {
+      toast({
+        title: 'Gagal membuat deployment ulang',
         description: getErrorMessage(error),
         variant: 'destructive',
       });
@@ -89,11 +106,24 @@ export function DeploymentDetailPage() {
           </h2>
           <StatusBadge status={deployment.status} />
         </div>
-        {CANCELLABLE_STATUSES.includes(deployment.status) && (
-          <Button variant="destructive" size="sm" onClick={() => setCancelOpen(true)}>
-            <XCircle className="mr-2 h-4 w-4" /> Cancel
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {deployment.status === DeploymentStatus.FAILED && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRetry}
+              disabled={retryDeployment.isPending}
+            >
+              <RefreshCw className="mr-2 h-4 w-4" />
+              {retryDeployment.isPending ? 'Membuat...' : 'Retry'}
+            </Button>
+          )}
+          {CANCELLABLE_STATUSES.includes(deployment.status) && (
+            <Button variant="destructive" size="sm" onClick={() => setCancelOpen(true)}>
+              <XCircle className="mr-2 h-4 w-4" /> Cancel
+            </Button>
+          )}
+        </div>
       </div>
 
       {deployment.status === DeploymentStatus.WAITING && (
