@@ -78,6 +78,13 @@ CI_API_KEY: ${CI_API_KEY}   # isi dari root .env / GitHub Secrets
 
 ## Template GitHub Actions Workflow
 
+> **Lokasi kanonik:** template workflow kini disimpan sebagai file nyata di
+> [`examples/simrs-workflow/build-and-deploy.yml`](../examples/simrs-workflow/build-and-deploy.yml),
+> dan logika chunked upload ada di [`scripts/ci-publish.sh`](../scripts/ci-publish.sh)
+> (teruji end-to-end: multi-part, resume, dan idempoten ke server lokal).
+> Salin file tersebut ke repo SIMRS; referensi berikut dijaga untuk
+> memahami isinya.
+
 Template workflow berikut ditempatkan di repo **SIMRS** (`rscb-simrs`),
 bukan di repo deployment system ini.
 
