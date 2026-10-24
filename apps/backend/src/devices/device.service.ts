@@ -4,7 +4,8 @@ import { Repository, Like, LessThan, MoreThanOrEqual } from 'typeorm';
 import { Device } from './entities/device.entity';
 import { DeviceNetwork } from './entities/device-network.entity';
 import { QueryDeviceDto } from './dto/query-device.dto';
-import { DeviceStatus, DEVICE_OFFLINE_AFTER_MS } from '@rscb/shared';
+import { AuditService } from '../audit/audit.service';
+import { AuditAction, DeviceStatus, DEVICE_OFFLINE_AFTER_MS } from '@rscb/shared';
 import { resolveOrder } from '../common/sort.util';
 
 /**
@@ -23,6 +24,7 @@ export class DeviceService {
     private readonly deviceRepository: Repository<Device>,
     @InjectRepository(DeviceNetwork)
     private readonly networkRepository: Repository<DeviceNetwork>,
+    private readonly auditService: AuditService,
   ) {}
 
   async findAll(query: QueryDeviceDto) {
@@ -56,6 +58,7 @@ export class DeviceService {
         applicationVersion: true,
         status: true,
         lastSeen: true,
+        isActive: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -84,6 +87,7 @@ export class DeviceService {
         applicationVersion: true,
         status: true,
         lastSeen: true,
+        isActive: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -92,6 +96,37 @@ export class DeviceService {
       throw new NotFoundException('Device not found');
     }
     return this.withOfflineStatus(device);
+  }
+
+  /**
+   * Menonaktifkan device memutus aksesnya: token dikosongkan sehingga
+   * agent tidak bisa memanggil API apa pun, dan DeviceAgentGuard menolak
+   * device nonaktif. Device lama (sebelum fitur ini) yang agent-nya sudah
+   * jalan akan ditolak 401 dan masuk siklus re-register, tapi registrasi
+   * tidak mengaktifkan kembali — aktivasi hanya lewat endpoint ini.
+   */
+  async setActive(id: string, isActive: boolean, actor = 'system') {
+    const device = await this.deviceRepository.findOne({ where: { id } });
+    if (!device) {
+      throw new NotFoundException('Device not found');
+    }
+    if (device.isActive === isActive) {
+      return device;
+    }
+    device.isActive = isActive;
+    if (!isActive) {
+      device.token = null as unknown as string;
+    }
+    await this.deviceRepository.save(device);
+    await this.auditService.log({
+      actor,
+      action: isActive ? AuditAction.DEVICE_ACTIVATED : AuditAction.DEVICE_DEACTIVATED,
+      target: 'DEVICE',
+      targetId: device.id,
+      details: { deviceId: device.deviceId, hostname: device.hostname },
+      result: 'SUCCESS',
+    });
+    return device;
   }
 
   /**
