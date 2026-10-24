@@ -14,6 +14,7 @@ import { AuthService } from './auth.service';
 import { AuditService } from '../audit/audit.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuditAction } from '@rscb/shared';
@@ -84,6 +85,32 @@ export class AuthController {
       result: 'SUCCESS',
     });
     return { success: true, data: { id: created.id, username: created.username } };
+  }
+
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async changePassword(@Body() dto: ChangePasswordDto, @CurrentUser() user: any) {
+    try {
+      await this.authService.changePassword(user.id, dto.currentPassword, dto.newPassword);
+    } catch (error) {
+      await this.auditService.log({
+        actor: user?.username || 'unknown',
+        action: AuditAction.USER_PASSWORD_CHANGED,
+        target: 'USER',
+        targetId: user?.id,
+        result: 'FAILURE',
+      });
+      throw error;
+    }
+    await this.auditService.log({
+      actor: user?.username || 'unknown',
+      action: AuditAction.USER_PASSWORD_CHANGED,
+      target: 'USER',
+      targetId: user?.id,
+      result: 'SUCCESS',
+    });
+    return { success: true };
   }
 
   @Get('me')
