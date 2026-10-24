@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { DeviceStatus } from '@rscb/shared';
 import { useDevices } from '@/lib/query/devices';
@@ -40,6 +40,7 @@ export function DevicesPage() {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
+  const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   // Default mengikuti default backend: lastSeen DESC (terbaru dulu).
   const [sort, setSort] = useState('lastSeen');
@@ -47,6 +48,16 @@ export function DevicesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const statusFilter = searchParams.get('status') || 'ALL';
+
+  // Debounce ketikan sebelum menjadi query — tanpa ini setiap karakter
+  // memicu satu request ke server.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchInput);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
   const setStatusFilter = (value: string) => {
     setSearchParams(value === 'ALL' ? {} : { status: value }, { replace: true });
     setPage(1);
@@ -108,11 +119,8 @@ export function DevicesPage() {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search hostname..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               className="pl-8 w-60"
             />
           </div>
