@@ -13,6 +13,9 @@ Thumbs.db
 *.swp
 *.swo
 
+# ZCode local state
+.zcode/
+
 # Build
 apps/backend/dist/
 apps/web/dist/
