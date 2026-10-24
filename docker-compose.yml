@@ -4,7 +4,7 @@ services:
     container_name: rscb-postgres
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: REDACTED
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres_dev}
       POSTGRES_DB: rscb_deployment
     ports:
       - '5432:5432'
@@ -48,7 +48,7 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3000
-      DATABASE_URL: postgresql://postgres:REDACTED@postgres:5432/rscb_deployment
+      DATABASE_URL: postgresql://postgres:${DB_PASSWORD:-postgres_dev}@postgres:5432/rscb_deployment
       JWT_SECRET: dev-jwt-secret-change-in-production
       JWT_EXPIRES_IN: 24h
       ADMIN_USERNAME: admin
