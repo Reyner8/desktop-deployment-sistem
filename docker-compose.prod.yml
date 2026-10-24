@@ -78,6 +78,14 @@ services:
         condition: service_healthy
     ports:
       - "${WEB_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      # TLS produksi: konfigurasi nginx ber-SSL + sertifikat dari host.
+      # Fallback tanpa TLS: hapus ketiga mount di bawah (nginx image memakai
+      # default.conf HTTP dari dalam image).
+      - ./infra/nginx/default.prod.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./infra/certs/fullchain.pem:/etc/nginx/certs/fullchain.pem:ro
+      - ./infra/certs/privkey.pem:/etc/nginx/certs/privkey.pem:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://localhost/ || exit 1"]
       interval: 15s

@@ -39,3 +39,6 @@ design-patterns.md
 ui-design.md
 # Ignore local upload directory (artifact storage when STORAGE_DRIVER=local)
 apps/backend/uploads/
+
+# Sertifikat TLS produksi (di-mount ke container web)
+infra/certs/

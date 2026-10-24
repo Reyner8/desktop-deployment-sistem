@@ -88,12 +88,18 @@ CI_API_KEY=<strong-ci-key>
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-### 3. Reverse Proxy (Nginx)
+### 3. HTTPS / TLS
 
-Catatan: reverse proxy **tidak dijalankan sebagai service di
-`docker-compose.prod.yml`**. Nginx untuk TLS/domain production dipasang di
-host (atau container terpisah) dan meneruskan request ke port web/backend.
-Gunakan konfigurasi berikut sebagai contoh:
+TLS kini **built-in di container web**: `docker-compose.prod.yml`
+memount `infra/nginx/default.prod.conf` (redirect 80 → 443, header
+security, `client_max_body_size` 20M) dan sertifikat dari
+`infra/certs/`. Cukup taruh `fullchain.pem` + `privkey.pem` di
+`infra/certs/` lalu jalankan stack — port 443 otomatis terbuka. Sertifikat
+di-gitignore, tidak ikut ter-commit.
+
+Alternatif (bila TLS diterminasi di host/load balancer): hapus ketiga
+mount volume pada service `web` sehingga nginx memakai `default.conf`
+HTTP bawaan image, lalu pasang reverse proxy di host sebagai berikut:
 
 ```nginx
 server {
