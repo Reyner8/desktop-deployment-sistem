@@ -1,5 +1,6 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { AgentService } from './agent.service';
+import { hashDeviceToken } from '../common/token-hash.util';
 import { DeploymentStatus, DeviceStatus } from '@rscb/shared';
 
 function createService(opts: { existing?: any } = {}) {
@@ -92,7 +93,9 @@ describe('AgentService.register', () => {
 
     expect(result.token).not.toBe('token-lama-sekret');
     const saved = deviceRepository.save.mock.calls[0][0];
-    expect(saved.token).toBe(result.token);
+    // Database menyimpan hash, response membawa token plaintext.
+    expect(saved.token).not.toBe(result.token);
+    expect(saved.token).toBe(hashDeviceToken(result.token));
   });
 
   it('mencatat rotasi token di audit log', async () => {

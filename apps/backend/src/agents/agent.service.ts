@@ -23,6 +23,7 @@ import {
   terminalDeploymentStatuses,
   activeDeploymentStatuses,
 } from '@rscb/shared';
+import { hashDeviceToken } from '../common/token-hash.util';
 
 @Injectable()
 export class AgentService {
@@ -63,7 +64,7 @@ export class AgentService {
       if (dto.applicationVersion) {
         device.applicationVersion = dto.applicationVersion;
       }
-      device.token = token;
+      device.token = hashDeviceToken(token);
       device.lastSeen = new Date();
       device.status = DeviceStatus.ONLINE;
       device = await this.deviceRepository.save(device);
@@ -75,7 +76,7 @@ export class AgentService {
           os: dto.os,
           agentVersion: dto.agentVersion,
           applicationVersion: dto.applicationVersion,
-          token,
+          token: hashDeviceToken(token),
           lastSeen: new Date(),
           status: DeviceStatus.ONLINE,
         }),
@@ -101,7 +102,9 @@ export class AgentService {
       },
       result: 'SUCCESS',
     });
-    return { deviceId: device.deviceId, token: device.token };
+    // Token plaintext hanya dikembalikan sekali di sini; di database yang
+    // tersimpan hash-nya (lihat DeviceAgentGuard untuk verifikasinya).
+    return { deviceId: device.deviceId, token };
   }
 
   async heartbeat(deviceId: string, dto: HeartbeatDto) {
