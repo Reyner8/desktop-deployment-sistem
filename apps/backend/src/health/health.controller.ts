@@ -13,8 +13,13 @@ export class HealthController {
   ) {}
 
   @Get()
-  check() {
-    return { status: 'ok', timestamp: new Date().toISOString() };
+  @HealthCheck()
+  async check() {
+    // Liveness kini benar-benar mengecek DB: tanpa DB backend tidak
+    // berguna, jadi 503 lebih jujur daripada ok statis. Timestamp tetap
+    // disertakan karena dipakai UI Settings.
+    const result = await this.health.check([() => this.db.pingCheck('database')]);
+    return { ...result, timestamp: new Date().toISOString() };
   }
 
   @Get('ready')
