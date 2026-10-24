@@ -137,8 +137,7 @@ export class CiService {
     const totalParts = this.totalPartsOf(session);
     for (const p of session.parts) {
       const isLast = p.part === totalParts;
-      const maxSizeAllowed = isLast ? Number(session.partSize) : Number(session.partSize);
-      if (Number(p.size) > maxSizeAllowed) {
+      if (Number(p.size) > Number(session.partSize)) {
         throw new BadRequestException(
           `Part ${p.part} size ${p.size} exceeds partSize ${session.partSize}`,
         );
