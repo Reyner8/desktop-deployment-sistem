@@ -14,6 +14,7 @@ export interface DeviceInfo {
   applicationVersion: string | null;
   status: DeviceStatus;
   lastSeen: string;
+  isActive?: boolean;
   networks?: DeviceNetworkInfo[];
   createdAt: string;
   updatedAt: string;
