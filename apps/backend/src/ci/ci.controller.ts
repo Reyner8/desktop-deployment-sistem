@@ -31,8 +31,11 @@ export class CiController {
   }
 
   @Post('uploads/:uploadId/parts/:partNumber')
+  // Headroom +1 byte: multer/busboy menolak file yang ukurannya PERSIS sama
+  // dengan limit, padahal part non-akhir selalu berukuran persis partSize.
+  // Validasi ukuran part yang sebenarnya dilakukan CiService (max = partSize).
   @UseInterceptors(
-    FileInterceptor('file', { limits: { files: 1, fileSize: CI_PART_SIZE } }),
+    FileInterceptor('file', { limits: { files: 1, fileSize: CI_PART_SIZE + 1 } }),
   )
   async uploadPart(
     @Param('uploadId') uploadId: string,
