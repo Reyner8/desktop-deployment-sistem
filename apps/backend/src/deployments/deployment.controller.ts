@@ -33,4 +33,10 @@ export class DeploymentController {
     const data = await this.deploymentService.cancel(id, user?.username);
     return { success: true, data };
   }
+
+  @Post(':id/retry')
+  async retry(@Param('id') id: string, @CurrentUser() user: any) {
+    const data = await this.deploymentService.retry(id, user?.username);
+    return { success: true, data };
+  }
 }
