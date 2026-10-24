@@ -44,6 +44,9 @@ const statusConfig: Record<
   [DeviceStatus.ERROR]: { label: 'Error', variant: 'destructive', icon: AlertTriangle },
   [ReleaseStatus.DRAFT]: { label: 'Draft', variant: 'muted', icon: FileText },
   [ReleaseStatus.UPLOADING]: { label: 'Uploading', variant: 'info', icon: RefreshCw },
+  // ReleaseStatus.VERIFYING dan ReleaseStatus.FAILED sengaja tidak punya
+  // entri sendiri: nilai stringnya identik dengan DeploymentStatus, jadi
+  // entri deployment di atas sudah menampilkan keduanya dengan benar.
   [ReleaseStatus.PUBLISHED]: { label: 'Published', variant: 'success', icon: CheckCircle },
   [ReleaseStatus.ARCHIVED]: { label: 'Archived', variant: 'muted', icon: Archive },
 };
