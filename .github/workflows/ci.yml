@@ -34,7 +34,8 @@ jobs:
       - name: Build
         run: npm run build
 
-      # Web belum punya unit test (script test-nya placeholder);
-      # hanya backend yang dijalankan.
       - name: Test backend
         run: npm run test -w apps/backend
+
+      - name: Test web
+        run: npm run test -w apps/web
