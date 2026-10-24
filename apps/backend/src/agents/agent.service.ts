@@ -19,6 +19,9 @@ import {
   ReleaseStatus,
   DeploymentStatus,
   deploymentTransitions,
+  deploymentStatusOrder,
+  terminalDeploymentStatuses,
+  activeDeploymentStatuses,
 } from '@rscb/shared';
 
 @Injectable()
@@ -133,6 +136,30 @@ export class AgentService {
     if (!device) {
       throw new NotFoundException('Device not found');
     }
+
+    // Deployment aktif milik device diambil terlepas dari ada tidaknya update
+    // versi: deployment yang terlewat (agent mati di tengah alur) harus tetap
+    // dikirim agar bisa dilanjutkan pada siklus agent berikutnya.
+    const deployment = await this.deploymentRepository.findOne({
+      where: activeDeploymentStatuses.map((status) => ({
+        device: { deviceId },
+        status,
+      })),
+      relations: ['release'],
+      order: { createdAt: 'ASC' },
+    });
+    if (deployment && deployment.status === DeploymentStatus.PENDING) {
+      deployment.status = DeploymentStatus.ASSIGNED;
+      await this.deploymentRepository.save(deployment);
+      await this.eventRepository.save(
+        this.eventRepository.create({
+          deployment,
+          status: DeploymentStatus.ASSIGNED,
+          message: 'Deployment assigned to device',
+        }),
+      );
+    }
+
     const releases = await this.releaseRepository.find({
       where: { status: ReleaseStatus.PUBLISHED },
       relations: ['artifact'],
@@ -140,7 +167,14 @@ export class AgentService {
     });
     if (releases.length === 0) {
       await this.syncUpdateStatus(device, false);
-      return { hasUpdate: false };
+      return {
+        hasUpdate: false,
+        latestVersion: null,
+        downloadUrl: null,
+        deploymentId: deployment?.id || null,
+        targetVersion: deployment?.release?.version || null,
+        deploymentStatus: deployment?.status || null,
+      };
     }
     const latest = releases[0];
     let hasUpdate = false;
@@ -156,37 +190,19 @@ export class AgentService {
 
     await this.syncUpdateStatus(device, hasUpdate);
 
-    const deployment = await this.deploymentRepository.findOne({
-      where: [
-        {
-          device: { deviceId },
-          status: DeploymentStatus.PENDING,
-        },
-        {
-          device: { deviceId },
-          status: DeploymentStatus.ASSIGNED,
-        },
-      ],
-      relations: ['release'],
-      order: { createdAt: 'ASC' },
-    });
-
-    if (deployment && deployment.status === DeploymentStatus.PENDING) {
-      deployment.status = DeploymentStatus.ASSIGNED;
-      await this.deploymentRepository.save(deployment);
-      await this.eventRepository.save(
-        this.eventRepository.create({
-          deployment,
-          status: DeploymentStatus.ASSIGNED,
-          message: 'Deployment assigned to device',
-        }),
-      );
-    }
+    // Bila ada deployment aktif, artifact yang diunduh mengikuti release pada
+    // deployment (bukan release terbaru) — agent memasang versi yang
+    // ditugaskan admin, bukan versi yang kebetulan paling baru dipublish.
+    const downloadUrl = deployment?.release
+      ? `/api/v1/agents/artifacts/${deployment.release.id}/download-url`
+      : latest.artifact
+        ? `/api/v1/agents/artifacts/${latest.id}/download-url`
+        : null;
 
     return {
       hasUpdate,
       latestVersion: latest.version,
-      downloadUrl: latest.artifact ? `/api/v1/agents/artifacts/${latest.id}/download-url` : null,
+      downloadUrl,
       deploymentId: deployment?.id || null,
       targetVersion: deployment?.release?.version || null,
       deploymentStatus: deployment?.status || null,
@@ -214,10 +230,41 @@ export class AgentService {
       );
     }
     const newStatus = dto.status as DeploymentStatus;
+
+    // Deployment terminal tidak berubah lagi — laporan ulang agent setelah
+    // SUCCESS/FAILED/CANCELLED dijawab sukses tanpa efek (idempotensi).
+    // Kondisi ini juga mencegah laporan bertentangan (mis. SUCCESS ke
+    // deployment yang sudah FAILED) menimpa keputusan terminal.
+    if (terminalDeploymentStatuses.includes(deployment.status)) {
+      return { status: 'ok' };
+    }
+
+    // Laporan yang sama dengan status server, atau lebih belakang di
+    // lifecycle (agent mengirim ulang laporan lama setelah retry jaringan),
+    // juga no-op — agent tidak perlu membedakan "sudah diterima" dari
+    // "masih menunggu".
+    const serverPos = deploymentStatusOrder.indexOf(deployment.status);
+    const reportPos = deploymentStatusOrder.indexOf(newStatus);
+    if (
+      newStatus === deployment.status ||
+      (serverPos >= 0 && reportPos >= 0 && reportPos < serverPos)
+    ) {
+      return { status: 'ok' };
+    }
+
     const validNext = deploymentTransitions.get(deployment.status) || [];
-    if (!validNext.includes(newStatus)) {
+    // SUCCESS/FAILED adalah laporan hasil akhir dari device yang benar-benar
+    // menjalankan instalasi, sehingga diterima dari status aktif mana pun.
+    // Lompatan terjadi saat laporan antara tidak sempat diterima server
+    // (agent mati/restart) — mis. agent melapor SUCCESS padahal server masih
+    // ASSIGNED; tanpa penerimaan ini deployment akan menggantung selamanya.
+    const isTerminalReport =
+      newStatus === DeploymentStatus.SUCCESS || newStatus === DeploymentStatus.FAILED;
+    if (!isTerminalReport && !validNext.includes(newStatus)) {
       throw new BadRequestException(`Cannot transition from ${deployment.status} to ${newStatus}`);
     }
+
+    const previousStatus = deployment.status;
     deployment.status = newStatus;
     if (dto.errorMessage) {
       deployment.errorMessage = dto.errorMessage;
@@ -227,7 +274,10 @@ export class AgentService {
     const event = this.eventRepository.create({
       deployment,
       status: newStatus,
-      message: dto.message || `Status updated to ${newStatus}`,
+      message:
+        isTerminalReport && !validNext.includes(newStatus)
+          ? `${dto.message || `Status updated to ${newStatus}`} (lompatan dari ${previousStatus}; laporan antara tidak sempat diterima server)`
+          : dto.message || `Status updated to ${newStatus}`,
     });
     await this.eventRepository.save(event);
 
