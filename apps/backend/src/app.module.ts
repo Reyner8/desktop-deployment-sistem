@@ -28,6 +28,7 @@ import { AddUploadSessions1730000000000 } from './database/migrations/1730000000
 import { AddArchivedReleaseStatus1740000000000 } from './database/migrations/1740000000000-AddArchivedReleaseStatus';
 import { AddWaitingDeploymentStatus1750000000000 } from './database/migrations/1750000000000-AddWaitingDeploymentStatus';
 import { ReorderWaitingDeploymentStatus1751000000000 } from './database/migrations/1751000000000-ReorderWaitingDeploymentStatus';
+import { AddUserRole1760000000000 } from './database/migrations/1760000000000-AddUserRole';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { ReorderWaitingDeploymentStatus1751000000000 } from './database/migratio
           AddArchivedReleaseStatus1740000000000,
           AddWaitingDeploymentStatus1750000000000,
           ReorderWaitingDeploymentStatus1751000000000,
+          AddUserRole1760000000000,
         ],
         logging: config.get('NODE_ENV') === 'development',
       }),
