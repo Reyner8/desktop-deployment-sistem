@@ -1,11 +1,17 @@
 import { useParams } from 'react-router-dom';
-import { useDevice } from '@/lib/query/devices';
+import { UserRole } from '@rscb/shared';
+import { useDevice, useSetDeviceActive } from '@/lib/query/devices';
+import { useMe } from '@/lib/query/auth';
 import { useDeployments } from '@/lib/query/deployments';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { ErrorState } from '@/components/ui/error-state';
+import { toast } from '@/stores/toast-store';
+import { getErrorMessage } from '@/lib/api/axios';
 import {
   Table,
   TableHeader,
@@ -14,7 +20,7 @@ import {
   TableHead,
   TableCell,
 } from '@/components/ui/table';
-import { Monitor, Package, Activity } from 'lucide-react';
+import { Monitor, Package, Activity, Power } from 'lucide-react';
 
 function lastSeenLabel(lastSeen: string): string {
   const diffMs = Date.now() - new Date(lastSeen).getTime();
@@ -37,6 +43,9 @@ export function DeviceDetailPage() {
     deviceId: id,
     limit: 10,
   });
+  const { data: profile } = useMe();
+  const setActive = useSetDeviceActive();
+  const isAdmin = profile?.role === UserRole.ADMIN;
 
   if (isLoading) {
     return (
@@ -67,12 +76,43 @@ export function DeviceDetailPage() {
 
   const heartbeatStale = Date.now() - new Date(device.lastSeen).getTime() > 5 * 60 * 1000;
 
+  const handleSetActive = async () => {
+    try {
+      await setActive.mutateAsync({ id: device.id, isActive: !device.isActive });
+      toast({
+        title: device.isActive ? 'Device dinonaktifkan' : 'Device diaktifkan',
+        description: device.hostname,
+        variant: 'success',
+      });
+    } catch (error) {
+      toast({
+        title: 'Gagal mengubah status device',
+        description: getErrorMessage(error),
+        variant: 'destructive',
+      });
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Monitor className="h-6 w-6 text-muted-foreground" />
-        <h2 className="text-xl font-semibold">{device.hostname}</h2>
-        <StatusBadge status={device.status} />
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Monitor className="h-6 w-6 text-muted-foreground" />
+          <h2 className="text-xl font-semibold">{device.hostname}</h2>
+          <StatusBadge status={device.status} />
+          {!device.isActive && <Badge variant="muted">Nonaktif</Badge>}
+        </div>
+        {isAdmin && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSetActive}
+            disabled={setActive.isPending}
+          >
+            <Power className="mr-2 h-4 w-4" />
+            {device.isActive ? 'Deactivate' : 'Activate'}
+          </Button>
+        )}
       </div>
 
       <Card>

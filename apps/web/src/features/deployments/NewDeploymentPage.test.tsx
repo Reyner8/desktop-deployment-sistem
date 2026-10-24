@@ -31,6 +31,7 @@ const device: Device = {
   applicationVersion: '1.4.9',
   lastSeen: new Date().toISOString(),
   status: DeviceStatus.ONLINE,
+  isActive: true,
 };
 
 function mockQueries(opts: { total?: number } = {}) {

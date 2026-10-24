@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ApiResponse, DeviceInfo, PaginatedResult, PaginationQuery } from '@rscb/shared';
 import { DeviceStatus } from '@rscb/shared';
 import api from '@/lib/api/axios';
@@ -13,6 +13,7 @@ export interface Device {
   applicationVersion: string;
   lastSeen: string;
   status: DeviceStatus;
+  isActive: boolean;
 }
 
 export interface DeviceQuery extends PaginationQuery {
@@ -31,6 +32,7 @@ export function mapDevice(raw: DeviceInfo): Device {
     applicationVersion: raw.applicationVersion || '',
     lastSeen: raw.lastSeen,
     status: raw.status,
+    isActive: raw.isActive ?? true,
   };
 }
 
@@ -74,5 +76,22 @@ export function usePendingUpdatesCount() {
       return data.data?.total ?? 0;
     },
     refetchInterval: 30000,
+  });
+}
+
+export function useSetDeviceActive() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
+      const { data } = await api.patch<ApiResponse<DeviceInfo>>(`/devices/${id}/active`, {
+        isActive,
+      });
+      return mapDevice(data.data!);
+    },
+    onSuccess: (device) => {
+      queryClient.invalidateQueries({ queryKey: ['devices'] });
+      queryClient.invalidateQueries({ queryKey: ['device', device.id] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
   });
 }
