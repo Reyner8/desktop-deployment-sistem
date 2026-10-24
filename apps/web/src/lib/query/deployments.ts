@@ -122,3 +122,19 @@ export function useCancelDeployment() {
     },
   });
 }
+
+export function useRetryDeployment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data } = await api.post<ApiResponse<DeploymentInfo>>(`/deployments/${id}/retry`);
+      return mapDeployment(data.data!);
+    },
+    onSuccess: (created) => {
+      queryClient.invalidateQueries({ queryKey: ['deployments'] });
+      queryClient.invalidateQueries({ queryKey: ['deployment'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      return created;
+    },
+  });
+}
