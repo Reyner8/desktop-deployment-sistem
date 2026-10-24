@@ -13,6 +13,18 @@ module.exports = {
     es2021: true,
   },
   ignorePatterns: ['dist', 'node_modules', '*.config.js', '*.config.ts', 'vite.config.ts'],
+  overrides: [
+    {
+      // Pola shadcn/ui: export const buttonVariants berdampingan dengan
+      // komponennya — memindahkan varians ke file terpisah justru merusak
+      // ergonomi copy-paste komponen. Fast refresh untuk file-file ini
+      // memang tidak diharapkan.
+      files: ['src/components/ui/*'],
+      rules: {
+        'react-refresh/only-export-components': 'off',
+      },
+    },
+  ],
   rules: {
     'react-hooks/rules-of-hooks': 'error',
     'react-hooks/exhaustive-deps': 'warn',
