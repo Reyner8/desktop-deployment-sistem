@@ -172,7 +172,98 @@ describe('AgentService.reportDeploymentStatus', () => {
     ).rejects.toThrow(NotFoundException);
   });
 
-  it('menolak transisi status yang tidak diizinkan', async () => {
+  // Perilaku baru (server toleran): SUCCESS/FAILED adalah laporan hasil
+  // akhir dari device yang benar-benar menjalankan instalasi, sehingga
+  // diterima dari status aktif mana pun. Tanpa ini deployment bisa
+  // menggantung selamanya ketika laporan antara tidak sempat diterima
+  // server (agent mati/restart di tengah alur).
+  it('menerima laporan SUCCESS dari ASSIGNED sebagai lompatan terminal', async () => {
+    const { service, deploymentRepository, eventRepository, deviceRepository } = createService();
+    deploymentRepository.findOne.mockResolvedValue(
+      deploymentOf('UNIT-A', DeploymentStatus.ASSIGNED),
+    );
+
+    const result = await service.reportDeploymentStatus('dep-1', 'UNIT-A', {
+      status: DeploymentStatus.SUCCESS,
+      message: 'Instalasi selesai',
+    } as any);
+
+    expect(result.status).toBe('ok');
+    expect(deploymentRepository.save).toHaveBeenCalled();
+    const event = eventRepository.save.mock.calls[0][0];
+    expect(event.status).toBe(DeploymentStatus.SUCCESS);
+    expect(event.message).toContain('lompatan dari ASSIGNED');
+    expect(deviceRepository.update).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ status: DeviceStatus.ONLINE }),
+    );
+  });
+
+  it('menerima laporan FAILED dari status aktif dan menandai device ERROR', async () => {
+    const { service, deploymentRepository, deviceRepository } = createService();
+    deploymentRepository.findOne.mockResolvedValue(
+      deploymentOf('UNIT-A', DeploymentStatus.DOWNLOADING),
+    );
+
+    const result = await service.reportDeploymentStatus('dep-1', 'UNIT-A', {
+      status: DeploymentStatus.FAILED,
+      errorMessage: 'download gagal',
+    } as any);
+
+    expect(result.status).toBe('ok');
+    expect(deploymentRepository.save).toHaveBeenCalled();
+    expect(deviceRepository.update).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ status: DeviceStatus.ERROR }),
+    );
+  });
+
+  it('laporan duplikat dijawab no-op tanpa mengubah state', async () => {
+    const { service, deploymentRepository, eventRepository } = createService();
+    deploymentRepository.findOne.mockResolvedValue(
+      deploymentOf('UNIT-A', DeploymentStatus.DOWNLOADING),
+    );
+
+    const result = await service.reportDeploymentStatus('dep-1', 'UNIT-A', {
+      status: DeploymentStatus.DOWNLOADING,
+    } as any);
+
+    expect(result.status).toBe('ok');
+    expect(deploymentRepository.save).not.toHaveBeenCalled();
+    expect(eventRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('laporan stale (di belakang status server) dijawab no-op', async () => {
+    const { service, deploymentRepository, eventRepository } = createService();
+    deploymentRepository.findOne.mockResolvedValue(
+      deploymentOf('UNIT-A', DeploymentStatus.INSTALLING),
+    );
+
+    const result = await service.reportDeploymentStatus('dep-1', 'UNIT-A', {
+      status: DeploymentStatus.VERIFYING,
+    } as any);
+
+    expect(result.status).toBe('ok');
+    expect(deploymentRepository.save).not.toHaveBeenCalled();
+    expect(eventRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('laporan ke deployment terminal dijawab no-op apa pun statusnya', async () => {
+    const { service, deploymentRepository, eventRepository } = createService();
+    deploymentRepository.findOne.mockResolvedValue(
+      deploymentOf('UNIT-A', DeploymentStatus.SUCCESS),
+    );
+
+    const result = await service.reportDeploymentStatus('dep-1', 'UNIT-A', {
+      status: DeploymentStatus.FAILED,
+    } as any);
+
+    expect(result.status).toBe('ok');
+    expect(deploymentRepository.save).not.toHaveBeenCalled();
+    expect(eventRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('tetap menolak lompatan non-terminal yang tidak diizinkan', async () => {
     const { service, deploymentRepository } = createService();
     deploymentRepository.findOne.mockResolvedValue(
       deploymentOf('UNIT-A', DeploymentStatus.ASSIGNED),
@@ -180,9 +271,79 @@ describe('AgentService.reportDeploymentStatus', () => {
 
     await expect(
       service.reportDeploymentStatus('dep-1', 'UNIT-A', {
-        status: DeploymentStatus.SUCCESS,
+        status: DeploymentStatus.INSTALLING,
       } as any),
     ).rejects.toThrow(/Cannot transition/);
+  });
+});
+
+describe('AgentService.getUpdates', () => {
+  function deviceOf(applicationVersion: string | null) {
+    return { id: 'dev-uuid-1', deviceId: 'UNIT-A', applicationVersion };
+  }
+
+  // Regresi: deployment yang terlewat (agent mati di tengah alur) tidak
+  // pernah dikirim ulang karena getUpdates hanya mencari PENDING/ASSIGNED,
+  // sehingga deployment DOWNLOADING/INSTALLING menggantung selamanya.
+  it('mengirim deployment aktif walau tidak ada update versi', async () => {
+    const { service, deviceRepository, releaseRepository, deploymentRepository } = createService();
+    deviceRepository.findOne.mockResolvedValue(deviceOf('2.0.0'));
+    releaseRepository.find.mockResolvedValue([
+      { id: 'rel-2', version: '2.0.0', artifact: {} },
+    ]);
+    deploymentRepository.findOne.mockResolvedValue({
+      id: 'dep-1',
+      status: DeploymentStatus.INSTALLING,
+      release: { id: 'rel-9', version: '1.9.0' },
+    });
+
+    const result = await service.getUpdates('UNIT-A');
+
+    expect(result.hasUpdate).toBe(false);
+    expect(result.deploymentId).toBe('dep-1');
+    expect(result.deploymentStatus).toBe(DeploymentStatus.INSTALLING);
+    // Artifact mengikuti release deployment, bukan release terbaru.
+    expect(result.downloadUrl).toBe('/api/v1/agents/artifacts/rel-9/download-url');
+    expect(result.targetVersion).toBe('1.9.0');
+  });
+
+  it('mengklaim deployment PENDING menjadi ASSIGNED saat dikirim', async () => {
+    const { service, deviceRepository, releaseRepository, deploymentRepository, eventRepository } =
+      createService();
+    deviceRepository.findOne.mockResolvedValue(deviceOf('1.0.0'));
+    releaseRepository.find.mockResolvedValue([
+      { id: 'rel-2', version: '2.0.0', artifact: {} },
+    ]);
+    deploymentRepository.findOne.mockResolvedValue({
+      id: 'dep-1',
+      status: DeploymentStatus.PENDING,
+      release: { id: 'rel-2', version: '2.0.0' },
+    });
+
+    const result = await service.getUpdates('UNIT-A');
+
+    expect(result.deploymentStatus).toBe(DeploymentStatus.ASSIGNED);
+    const saved = deploymentRepository.save.mock.calls[0][0];
+    expect(saved.status).toBe(DeploymentStatus.ASSIGNED);
+    expect(eventRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ status: DeploymentStatus.ASSIGNED }),
+    );
+  });
+
+  it('tanpa release dan tanpa deployment tetap mengembalikan bentuk response lengkap', async () => {
+    const { service, deviceRepository } = createService();
+    deviceRepository.findOne.mockResolvedValue(deviceOf('1.0.0'));
+
+    const result = await service.getUpdates('UNIT-A');
+
+    expect(result).toEqual({
+      hasUpdate: false,
+      latestVersion: null,
+      downloadUrl: null,
+      deploymentId: null,
+      targetVersion: null,
+      deploymentStatus: null,
+    });
   });
 });
 
