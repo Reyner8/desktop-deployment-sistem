@@ -14,11 +14,11 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { useMe, useRegisterUser } from '@/lib/query/auth';
+import { useMe, useRegisterUser, useChangePassword } from '@/lib/query/auth';
 import { useHealth } from '@/lib/query/health';
 import { getErrorMessage } from '@/lib/api/axios';
 import { toast } from '@/stores/toast-store';
-import { Settings, LogOut, User, UserPlus } from 'lucide-react';
+import { Settings, LogOut, User, UserPlus, KeyRound } from 'lucide-react';
 
 const registerSchema = z.object({
   username: z.string().min(1, 'Username is required'),
@@ -28,6 +28,19 @@ const registerSchema = z.object({
 
 type RegisterForm = z.infer<typeof registerSchema>;
 
+const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, 'Password saat ini wajib diisi'),
+    newPassword: z.string().min(4, 'Password baru minimal 4 karakter'),
+    confirmPassword: z.string().min(1, 'Konfirmasi password wajib diisi'),
+  })
+  .refine((v) => v.newPassword === v.confirmPassword, {
+    message: 'Konfirmasi password tidak cocok',
+    path: ['confirmPassword'],
+  });
+
+type ChangePasswordForm = z.infer<typeof changePasswordSchema>;
+
 export function SettingsPage() {
   const storedUser = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
@@ -35,11 +48,34 @@ export function SettingsPage() {
   const { data: profile } = useMe();
   const { data: health, isError: serverOffline } = useHealth();
   const registerUser = useRegisterUser();
+  const changePassword = useChangePassword();
 
   const form = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
     defaultValues: { username: '', displayName: '', password: '' },
   });
+
+  const passwordForm = useForm<ChangePasswordForm>({
+    resolver: zodResolver(changePasswordSchema),
+    defaultValues: { currentPassword: '', newPassword: '', confirmPassword: '' },
+  });
+
+  const onSubmitPassword = async (values: ChangePasswordForm) => {
+    try {
+      await changePassword.mutateAsync({
+        currentPassword: values.currentPassword,
+        newPassword: values.newPassword,
+      });
+      toast({ title: 'Password berhasil diganti', variant: 'success' });
+      passwordForm.reset();
+    } catch (error) {
+      toast({
+        title: 'Gagal mengganti password',
+        description: getErrorMessage(error),
+        variant: 'destructive',
+      });
+    }
+  };
 
   const onSubmit = async (values: RegisterForm) => {
     try {
@@ -77,6 +113,64 @@ export function SettingsPage() {
             <span className="text-muted-foreground">Display Name</span>
             <span className="font-medium">{user?.displayName || '-'}</span>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <KeyRound className="h-5 w-5 text-muted-foreground" />
+            <CardTitle>Change Password</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Form {...passwordForm}>
+            <form onSubmit={passwordForm.handleSubmit(onSubmitPassword)} className="space-y-4" noValidate>
+              <FormField
+                control={passwordForm.control}
+                name="currentPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password Saat Ini</FormLabel>
+                    <FormControl>
+                      <Input type="password" placeholder="••••••" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={passwordForm.control}
+                name="newPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password Baru</FormLabel>
+                    <FormControl>
+                      <Input type="password" placeholder="••••••" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={passwordForm.control}
+                name="confirmPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Konfirmasi Password Baru</FormLabel>
+                    <FormControl>
+                      <Input type="password" placeholder="••••••" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit" disabled={changePassword.isPending}>
+                <KeyRound className="mr-2 h-4 w-4" />
+                {changePassword.isPending ? 'Menyimpan...' : 'Ganti Password'}
+              </Button>
+            </form>
+          </Form>
         </CardContent>
       </Card>
 
@@ -152,7 +246,7 @@ export function SettingsPage() {
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Version</span>
-            <span className="font-medium">0.1.0</span>
+            <span className="font-medium">{__APP_VERSION__}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Server Status</span>
