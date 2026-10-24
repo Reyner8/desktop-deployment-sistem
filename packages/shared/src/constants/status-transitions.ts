@@ -31,3 +31,34 @@ export const deploymentTransitions: Map<DeploymentStatus, DeploymentStatus[]> = 
   [DeploymentStatus.FAILED, [DeploymentStatus.CANCELLED]],
   [DeploymentStatus.CANCELLED, []],
 ]);
+
+/**
+ * Urutan lifecycle deployment untuk perbandingan posisi status (laporan
+ * agent "di depan" atau "di belakang" status server — dipakai idempotensi
+ * laporan di AgentService.reportDeploymentStatus). FAILED dan CANCELLED
+ * terminal; posisinya di akhir hanya agar indexOf selalu menemukan nilai.
+ */
+export const deploymentStatusOrder: DeploymentStatus[] = [
+  DeploymentStatus.PENDING,
+  DeploymentStatus.ASSIGNED,
+  DeploymentStatus.DOWNLOADING,
+  DeploymentStatus.VERIFYING,
+  DeploymentStatus.WAITING,
+  DeploymentStatus.INSTALLING,
+  DeploymentStatus.STARTING,
+  DeploymentStatus.SUCCESS,
+  DeploymentStatus.FAILED,
+  DeploymentStatus.CANCELLED,
+];
+
+/** Status deployment yang tidak bisa berubah lagi. */
+export const terminalDeploymentStatuses: DeploymentStatus[] = [
+  DeploymentStatus.SUCCESS,
+  DeploymentStatus.FAILED,
+  DeploymentStatus.CANCELLED,
+];
+
+/** Status deployment yang masih bisa dilanjutkan oleh agent. */
+export const activeDeploymentStatuses: DeploymentStatus[] = deploymentStatusOrder.filter(
+  (status) => !terminalDeploymentStatuses.includes(status),
+);
