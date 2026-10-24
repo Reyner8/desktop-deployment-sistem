@@ -63,3 +63,17 @@ export function useRegisterUser() {
     },
   });
 }
+
+export interface ChangePasswordPayload {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export function useChangePassword() {
+  return useMutation({
+    mutationFn: async (payload: ChangePasswordPayload) => {
+      const { data } = await api.post<ApiResponse<null>>('/auth/change-password', payload);
+      return data;
+    },
+  });
+}
