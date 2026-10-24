@@ -2,21 +2,26 @@ import {
   Controller,
   Post,
   Get,
+  Patch,
+  Delete,
   Body,
+  Param,
   UseGuards,
   HttpCode,
   HttpStatus,
   UnauthorizedException,
-  ForbiddenException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
+import { UserRole } from '@rscb/shared';
 import { AuthService } from './auth.service';
 import { AuditService } from '../audit/audit.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { UpdateRoleDto } from './dto/update-role.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuditAction } from '@rscb/shared';
 
@@ -25,7 +30,6 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly auditService: AuditService,
-    private readonly configService: ConfigService,
   ) {}
 
   @Post('login')
@@ -56,39 +60,82 @@ export class AuthController {
     return {
       success: true,
       token: result.accessToken,
-      user: { username: user.username, displayName: user.displayName },
+      user: { username: user.username, displayName: user.displayName, role: user.role },
     };
   }
 
   @Post('register')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   async register(@Body() dto: RegisterDto, @CurrentUser() user: any) {
-    // Tabel users tidak punya kolom role, jadi otorisasi pembuatan user
-    // dititipkan ke akun bootstrap admin dari ADMIN_USERNAME. Tanpa ini
-    // setiap user yang berhasil login otomatis mendapat hak membuat user
-    // lain. Model role yang sungguhan perlu keputusan terpisah karena
-    // tidak ada taksonomi role di dokumentasi.
-    const adminUsername = this.configService.get<string>('ADMIN_USERNAME') || 'admin';
-    if (user?.username !== adminUsername) {
-      await this.auditService.log({
-        actor: user?.username || 'unknown',
-        action: AuditAction.USER_REGISTERED,
-        target: 'USER',
-        details: { username: dto.username, reason: 'not authorized' },
-        result: 'FAILURE',
-      });
-      throw new ForbiddenException('Only the administrator account may create users');
-    }
-    const created = await this.authService.register(dto.username, dto.password, dto.displayName);
+    const created = await this.authService.register(
+      dto.username,
+      dto.password,
+      dto.displayName,
+      dto.role,
+    );
     await this.auditService.log({
       actor: user?.username || 'system',
       action: AuditAction.USER_REGISTERED,
       target: 'USER',
       targetId: created.id,
-      details: { username: created.username },
+      details: { username: created.username, role: created.role },
       result: 'SUCCESS',
     });
-    return { success: true, data: { id: created.id, username: created.username } };
+    return { success: true, data: { id: created.id, username: created.username, role: created.role } };
+  }
+
+  @Get('users')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  async listUsers() {
+    const users = await this.authService.listUsers();
+    return {
+      success: true,
+      data: users.map((u) => ({
+        id: u.id,
+        username: u.username,
+        displayName: u.displayName,
+        role: u.role,
+        isActive: u.isActive,
+        createdAt: u.createdAt,
+      })),
+    };
+  }
+
+  @Patch('users/:id/role')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  async updateUserRole(
+    @Param('id') id: string,
+    @Body() dto: UpdateRoleDto,
+    @CurrentUser() user: any,
+  ) {
+    const updated = await this.authService.updateUserRole(id, dto.role);
+    await this.auditService.log({
+      actor: user?.username || 'unknown',
+      action: AuditAction.USER_ROLE_CHANGED,
+      target: 'USER',
+      targetId: id,
+      details: { username: updated.username, role: updated.role },
+      result: 'SUCCESS',
+    });
+    return { success: true, data: { id: updated.id, username: updated.username, role: updated.role } };
+  }
+
+  @Delete('users/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  async deleteUser(@Param('id') id: string, @CurrentUser() user: any) {
+    await this.authService.deleteUser(id, user?.username);
+    await this.auditService.log({
+      actor: user?.username || 'unknown',
+      action: AuditAction.USER_DELETED,
+      target: 'USER',
+      targetId: id,
+      result: 'SUCCESS',
+    });
+    return { success: true };
   }
 
   @Post('change-password')
@@ -127,6 +174,7 @@ export class AuthController {
         id: profile.id,
         username: profile.username,
         displayName: profile.displayName,
+        role: profile.role,
       },
     };
   }
