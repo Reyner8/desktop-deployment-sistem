@@ -14,16 +14,41 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { useMe, useRegisterUser, useChangePassword } from '@/lib/query/auth';
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '@/components/ui/table';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { useMe, useRegisterUser, useChangePassword, useUsers, useUpdateUserRole, useDeleteUser } from '@/lib/query/auth';
 import { useHealth } from '@/lib/query/health';
 import { getErrorMessage } from '@/lib/api/axios';
 import { toast } from '@/stores/toast-store';
-import { Settings, LogOut, User, UserPlus, KeyRound } from 'lucide-react';
+import { UserRole } from '@rscb/shared';
+import {
+  Settings,
+  LogOut,
+  User,
+  UserPlus,
+  KeyRound,
+  Trash2,
+  ShieldCheck,
+} from 'lucide-react';
 
 const registerSchema = z.object({
   username: z.string().min(1, 'Username is required'),
   displayName: z.string().optional(),
   password: z.string().min(4, 'Password minimal 4 karakter'),
+  role: z.nativeEnum(UserRole),
 });
 
 type RegisterForm = z.infer<typeof registerSchema>;
@@ -52,7 +77,7 @@ export function SettingsPage() {
 
   const form = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { username: '', displayName: '', password: '' },
+    defaultValues: { username: '', displayName: '', password: '', role: UserRole.OPERATOR },
   });
 
   const passwordForm = useForm<ChangePasswordForm>({
@@ -92,6 +117,36 @@ export function SettingsPage() {
   };
 
   const user = profile || storedUser;
+  const isAdmin = user?.role === UserRole.ADMIN;
+  const { data: users } = useUsers(isAdmin);
+  const updateUserRole = useUpdateUserRole();
+  const deleteUser = useDeleteUser();
+
+  const handleChangeRole = async (target: { id: string; username: string }, role: UserRole) => {
+    try {
+      await updateUserRole.mutateAsync({ id: target.id, role });
+      toast({ title: 'Role diubah', description: target.username, variant: 'success' });
+    } catch (error) {
+      toast({
+        title: 'Gagal mengubah role',
+        description: getErrorMessage(error),
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDeleteUser = async (target: { id: string; username: string }) => {
+    try {
+      await deleteUser.mutateAsync(target.id);
+      toast({ title: 'Pengguna dihapus', description: target.username, variant: 'success' });
+    } catch (error) {
+      toast({
+        title: 'Gagal menghapus pengguna',
+        description: getErrorMessage(error),
+        variant: 'destructive',
+      });
+    }
+  };
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -223,12 +278,92 @@ export function SettingsPage() {
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="role"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Role</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger className="w-48">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={UserRole.OPERATOR}>Operator</SelectItem>
+                        <SelectItem value={UserRole.ADMIN}>Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <Button type="submit" disabled={registerUser.isPending}>
                 <UserPlus className="mr-2 h-4 w-4" />
                 {registerUser.isPending ? 'Menyimpan...' : 'Tambah Pengguna'}
               </Button>
             </form>
           </Form>
+
+          {isAdmin && users && users.length > 0 && (
+            <div className="mt-6 border-t pt-4">
+              <p className="mb-2 flex items-center gap-2 text-sm font-medium">
+                <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+                Daftar Pengguna
+              </p>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Username</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead className="w-12" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {users.map((u) => (
+                    <TableRow key={u.id}>
+                      <TableCell>
+                        <span className="font-medium">{u.username}</span>
+                        {u.username === user?.username && (
+                          <span className="ml-2 text-xs text-muted-foreground">(anda)</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          value={u.role}
+                          onValueChange={(role) => handleChangeRole(u, role as UserRole)}
+                          disabled={u.username === user?.username || updateUserRole.isPending}
+                        >
+                          <SelectTrigger className="h-8 w-32">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={UserRole.OPERATOR}>Operator</SelectItem>
+                            <SelectItem value={UserRole.ADMIN}>Admin</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive"
+                          disabled={u.username === user?.username || deleteUser.isPending}
+                          onClick={() => handleDeleteUser(u)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Role sendiri dan ADMIN terakhir tidak dapat dicabut/dihapus.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
