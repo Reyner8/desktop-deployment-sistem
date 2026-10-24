@@ -147,4 +147,59 @@ export class DeploymentService {
     });
     return deployment;
   }
+
+  /**
+   * Membuat deployment baru untuk release dan device yang sama dengan
+   * deployment FAILED. FAILED bersifat terminal di state machine, jadi
+   * retry tidak mengubah status lama — riwayat kegagalan tetap utuh dan
+   * alur baru mulai dari PENDING.
+   */
+  async retry(id: string, actor = 'system') {
+    const previous = await this.findOne(id);
+    if (previous.status !== DeploymentStatus.FAILED) {
+      throw new BadRequestException('Can only retry a FAILED deployment');
+    }
+    const release = await this.releaseRepository.findOne({
+      where: { id: previous.release.id },
+    });
+    if (!release || release.status !== ReleaseStatus.PUBLISHED) {
+      throw new BadRequestException('Release of the failed deployment is no longer published');
+    }
+    const device = await this.deviceRepository.findOne({
+      where: { id: previous.device.id, isActive: true },
+    });
+    if (!device) {
+      throw new BadRequestException('Device of the failed deployment is no longer active');
+    }
+
+    const deployment = await this.deploymentRepository.save(
+      this.deploymentRepository.create({
+        release,
+        device,
+        status: DeploymentStatus.PENDING,
+      }),
+    );
+    await this.eventRepository.save(
+      this.eventRepository.create({
+        deployment,
+        status: DeploymentStatus.PENDING,
+        message: `Deployment created (retry of ${previous.id})`,
+      }),
+    );
+    await this.auditService.log({
+      actor,
+      action: AuditAction.DEPLOYMENT_CREATED,
+      target: 'DEPLOYMENT',
+      targetId: deployment.id,
+      details: {
+        releaseId: release.id,
+        releaseVersion: release.version,
+        deviceId: device.id,
+        hostname: device.hostname,
+        retryOf: previous.id,
+      },
+      result: 'SUCCESS',
+    });
+    return deployment;
+  }
 }
