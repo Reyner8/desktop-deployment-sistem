@@ -7,3 +7,6 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+// Di-inject oleh vite.config.ts dari version package.json web.
+declare const __APP_VERSION__: string;
