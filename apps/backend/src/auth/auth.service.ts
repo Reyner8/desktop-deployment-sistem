@@ -58,6 +58,20 @@ export class AuthService {
     return user;
   }
 
+  async changePassword(id: string, currentPassword: string, newPassword: string): Promise<void> {
+    const user = await this.userRepository.findOne({ where: { id } });
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('User not found or inactive');
+    }
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+    await this.userRepository.save(user);
+  }
+
   async seedAdmin(): Promise<void> {
     const username = this.configService.get('ADMIN_USERNAME') || 'admin';
     const password = this.configService.get('ADMIN_PASSWORD');
