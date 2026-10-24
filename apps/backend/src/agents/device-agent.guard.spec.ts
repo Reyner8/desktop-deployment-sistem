@@ -29,6 +29,7 @@ const device = {
   deviceId: 'UNIT-01',
   token: hashDeviceToken('token-abc'),
   status: DeviceStatus.ONLINE,
+  isActive: true,
 };
 
 describe('DeviceAgentGuard', () => {
@@ -41,6 +42,14 @@ describe('DeviceAgentGuard', () => {
     expect(deviceRepository.findOne).toHaveBeenCalledWith({
       where: { token: hashDeviceToken('token-abc') },
     });
+  });
+
+  it('menolak device yang dinonaktifkan walau token masih sah', async () => {
+    const { guard } = createGuard({ byHash: { ...device, isActive: false } });
+
+    await expect(guard.canActivate(createContext('token-abc'))).rejects.toThrow(
+      /deactivated/,
+    );
   });
 
   it('menolak request tanpa header x-api-key', async () => {

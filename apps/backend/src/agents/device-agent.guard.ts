@@ -35,6 +35,11 @@ export class DeviceAgentGuard implements CanActivate {
     if (!device) {
       throw new UnauthorizedException('Invalid device token');
     }
+    // Device yang dinonaktifkan admin tidak boleh memanggil API apa pun,
+    // sekalipun token-nya masih sah di sisi agent.
+    if (!device.isActive) {
+      throw new UnauthorizedException('Device is deactivated');
+    }
     request.device = device;
     return true;
   }
