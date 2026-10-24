@@ -10,12 +10,14 @@ import {
   UseInterceptors,
   UploadedFile,
   ParseIntPipe,
+  BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CiService } from './ci.service';
 import { CiAuthGuard } from '../common/guards/ci-auth.guard';
 import { CreateUploadDto } from './dto/create-upload.dto';
 import { CI_PART_SIZE } from './ci.constants';
+import { ReleaseStatus } from '@rscb/shared';
 
 @Controller('ci')
 @UseGuards(CiAuthGuard)
@@ -65,6 +67,14 @@ export class CiController {
     @Query('version') version: string,
     @Query('status') status?: string,
   ) {
+    // Status masuk where-clause enum TypeORM apa adanya — nilai asal akan
+    // melempar error DB dan menjadi 500. Validasi di sini supaya CI mendapat
+    // 400 yang jelas.
+    if (status && !Object.values(ReleaseStatus).includes(status as ReleaseStatus)) {
+      throw new BadRequestException(
+        `Invalid status "${status}". Allowed: ${Object.values(ReleaseStatus).join(', ')}`,
+      );
+    }
     const data = await this.ciService.findRelease(application, version, status);
     return { success: true, data };
   }
