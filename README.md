@@ -118,10 +118,18 @@ GitHub Actions workflow.
 
 ## API Documentation
 
+Referensi interaktif tersedia via OpenAPI/Swagger di `http://localhost:3000/api/docs`
+(hanya di luar produksi). Ringkasan endpoint:
+
 | Method     | Endpoint                                           | Deskripsi                         |
 | ---------- | -------------------------------------------------- | --------------------------------- |
 | POST       | `/api/v1/auth/login`                               | Login admin                       |
 | GET        | `/api/v1/auth/me`                                  | Current user                      |
+| POST       | `/api/v1/auth/change-password`                     | Ganti password sendiri            |
+| POST       | `/api/v1/auth/register`                            | Buat user (ADMIN)                 |
+| GET        | `/api/v1/auth/users`                               | Daftar user (ADMIN)               |
+| PATCH      | `/api/v1/auth/users/:id/role`                      | Ubah role (ADMIN)                 |
+| DELETE     | `/api/v1/auth/users/:id`                           | Hapus user (ADMIN)                |
 | POST       | `/api/v1/agents/register`                          | Register agent                    |
 | POST       | `/api/v1/agents/heartbeat`                         | Agent heartbeat                   |
 | GET        | `/api/v1/agents/updates`                           | Check updates                     |
@@ -130,6 +138,7 @@ GitHub Actions workflow.
 | GET        | `/api/v1/agents/artifacts/:releaseId/file`         | Stream artifact (storage lokal)   |
 | GET        | `/api/v1/devices`                                  | List devices                      |
 | GET        | `/api/v1/devices/:id`                              | Device detail                     |
+| PATCH      | `/api/v1/devices/:id/active`                       | Aktif/nonaktif device (ADMIN)     |
 | POST       | `/api/v1/releases`                                 | Create release                    |
 | GET        | `/api/v1/releases`                                 | List releases                     |
 | POST       | `/api/v1/releases/:id/artifact`                    | Upload artifact                   |
@@ -140,6 +149,7 @@ GitHub Actions workflow.
 | GET        | `/api/v1/deployments`                              | List deployments                  |
 | GET        | `/api/v1/deployments/:id`                          | Deployment detail                 |
 | POST       | `/api/v1/deployments/:id/cancel`                   | Cancel deployment                 |
+| POST       | `/api/v1/deployments/:id/retry`                    | Retry deployment FAILED           |
 | GET        | `/api/v1/audit`                                    | Audit logs                        |
 | **POST**   | **`/api/v1/ci/uploads`**                           | **Buka sesi chunked upload**      |
 | **POST**   | **`/api/v1/ci/uploads/:id/parts/:n`**              | **Upload chunk (≤ 16MB)**         |
