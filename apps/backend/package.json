@@ -7,12 +7,13 @@
     "dev": "nest watch",
     "start": "nest start",
     "start:prod": "node dist/apps/backend/src/main",
-    "lint": "eslint \"src/**/*.ts\" --fix",
+    "lint": "eslint \"src/**/*.ts\"",
     "test": "jest",
     "migration:generate": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:generate -d src/database/data-source.ts",
     "migration:run": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:run -d src/database/data-source.ts",
     "migration:revert": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:revert -d src/database/data-source.ts",
-    "test:e2e": "jest --config test/jest-e2e.json --runInBand"
+    "test:e2e": "jest --config test/jest-e2e.json --runInBand",
+    "lint:fix": "eslint \"src/**/*.ts\" --fix"
   },
   "dependencies": {
     "@nestjs/common": "^10.3.10",
