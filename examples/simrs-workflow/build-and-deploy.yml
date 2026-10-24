@@ -1,0 +1,52 @@
+name: Build & Deploy to RSCB
+
+# Salin ke repo SIMRS sebagai .github/workflows/build-and-deploy.yml.
+# Script ci-publish.sh diunduh dari repo deployment system — ganti OWNER
+# dan BRANCH sesuai lokasi repo deployment system yang benar.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  VERSION: ${GITHUB_REF_NAME#v}
+  DEPLOYMENT_URL: ${{ secrets.DEPLOYMENT_URL }}
+  DEPLOYMENT_CI_KEY: ${{ secrets.DEPLOYMENT_CI_KEY }}
+  CI_PUBLISH_SCRIPT_URL: https://raw.githubusercontent.com/Reyner8/desktop-deployment-sistem/main/scripts/ci-publish.sh
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Build SIMRS
+        run: |
+          chmod +x gradlew
+          ./gradlew clean build -x test
+
+      - name: Create ZIP artifact
+        run: |
+          zip -r simrs-${VERSION}.zip \
+            build/libs/*.jar \
+            config/ \
+            lib/ \
+            report/ \
+            suara/ \
+            run.bat
+
+      - name: Download publish script
+        run: |
+          curl -fsSL "$CI_PUBLISH_SCRIPT_URL" -o ci-publish.sh
+          chmod +x ci-publish.sh
+
+      - name: Publish to Deployment Server
+        run: ./ci-publish.sh "simrs-${VERSION}.zip" SIMRS "$VERSION"
