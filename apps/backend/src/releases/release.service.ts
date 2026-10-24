@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Release } from './entities/release.entity';
 import { ArtifactService } from '../artifacts/artifact.service';
 import { AuditService } from '../audit/audit.service';
@@ -56,42 +56,38 @@ export class ReleaseService {
     const limit = query.limit || 20;
     const skip = (page - 1) * limit;
 
-    const where: any = {};
+    // Sort versi dilakukan di SQL sebelum pagination. Sort in-memory setelah
+    // slice menghasilkan urutan lintas halaman yang salah — halaman 2 bisa
+    // berisi versi lebih tua dari akhir halaman 1. Versi dianggap semver
+    // numerik MAJOR.MINOR.PATCH (aturan versioning project); versi di luar
+    // pola itu diletakkan paling belakang dan fallback ke createdAt.
+    const qb = this.releaseRepository
+      .createQueryBuilder('release')
+      .leftJoinAndSelect('release.artifact', 'artifact');
     if (query.status) {
-      where.status = query.status;
+      qb.andWhere('release.status = :status', { status: query.status });
     }
     if (query.search) {
-      where.version = Like(`%${query.search}%`);
+      qb.andWhere('release.version LIKE :search', { search: `%${query.search}%` });
     }
     if (query.application) {
-      where.application = query.application;
+      qb.andWhere('release.application = :application', { application: query.application });
     }
 
-    const [data, total] = await this.releaseRepository.findAndCount({
-      where,
-      relations: ['artifact'],
-      skip,
-      take: limit,
-      order: resolveOrder(query.sort, SORTABLE_FIELDS, 'createdAt', query.order),
-    });
+    const order = resolveOrder(query.sort, SORTABLE_FIELDS, 'createdAt', query.order);
+    const [field, direction] = Object.entries(order)[0];
+    if (field === 'version') {
+      const semverPart = (part: number) =>
+        `CASE WHEN release.version ~ '^[0-9]+\\.[0-9]+\\.[0-9]+$' THEN CAST(split_part(release.version, '.', ${part}) AS INTEGER) END`;
+      qb.orderBy(semverPart(1), direction, 'NULLS LAST')
+        .addOrderBy(semverPart(2), direction, 'NULLS LAST')
+        .addOrderBy(semverPart(3), direction, 'NULLS LAST')
+        .addOrderBy('release.createdAt', 'DESC');
+    } else {
+      qb.orderBy(`release.${field}`, direction);
+    }
 
-    // Sort versi in-memory karena PostgreSQL mengurutkan secara leksikografis
-    // (9.9.10 akan sebelum 9.9.2). Kita bagi versi menjadi 3 part major/minor/patch
-    // dan banding integer, lalu string untuk suffix jika ada.
-    const versionCompare = (a: string, b: string): number => {
-      const parsePart = (v: string) => {
-        const parts = v.split('.').map((p) => parseInt(p, 10) || 0);
-        return parts.length > 0 ? parts : [0];
-      };
-      const aParts = parsePart(a);
-      const bParts = parsePart(b);
-      for (let i = 0; i < 3; i++) {
-        if (aParts[i] > bParts[i]) return 1;
-        if (aParts[i] < bParts[i]) return -1;
-      }
-      return a.localeCompare(b);
-    };
-    data.sort((a, b) => versionCompare(a.version, b.version));
+    const [data, total] = await qb.skip(skip).take(limit).getManyAndCount();
 
     const items = await Promise.all(data.map((release) => this.withDownloadUrl(release)));
 
