@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import type { DeployTargetInfo } from '@rscb/shared';
+import { useQueries } from '@tanstack/react-query';
+import type { ApiResponse, DeviceInfo, DeployTargetInfo } from '@rscb/shared';
 import { DeviceStatus, ReleaseStatus } from '@rscb/shared';
-import { useDevices } from '@/lib/query/devices';
+import { useDevices, mapDevice, type Device } from '@/lib/query/devices';
+import api from '@/lib/api/axios';
 import { useReleases } from '@/lib/query/releases';
 import { useCreateDeployment } from '@/lib/query/deployments';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -53,13 +55,55 @@ export function NewDeploymentPage() {
     status: ReleaseStatus.PUBLISHED,
     limit: 100,
   });
-  const { data: devices, isLoading: loadingDevices } = useDevices({ limit: 500 });
 
-  const visibleDevices = devices?.data?.filter(
-    (d) =>
-      d.hostname.toLowerCase().includes(deviceSearch.toLowerCase()) ||
-      d.ipAddress.toLowerCase().includes(deviceSearch.toLowerCase()),
-  );
+  // Pencarian device didelegasikan ke server (debounce 300ms) supaya daftar
+  // device yang bisa dipilih tidak terbatas pada 500 entri pertama.
+  const [debouncedDeviceSearch, setDebouncedDeviceSearch] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedDeviceSearch(deviceSearch), 300);
+    return () => clearTimeout(timer);
+  }, [deviceSearch]);
+
+  const { data: devices, isLoading: loadingDevices } = useDevices({
+    search: debouncedDeviceSearch || undefined,
+    limit: 100,
+  });
+
+  // Info device untuk langkah review diambil dari semua device yang pernah
+  // ter-fetch di halaman ini, sehingga device yang sudah dipilih tetap tampil
+  // walaupun tidak ada di hasil pencarian saat ini.
+  const [knownDevices, setKnownDevices] = useState<Map<string, Device>>(new Map());
+  useEffect(() => {
+    if (!devices?.data?.length) return;
+    setKnownDevices((prev) => {
+      const next = new Map(prev);
+      let changed = false;
+      for (const device of devices.data) {
+        if (!next.has(device.id)) {
+          next.set(device.id, device);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [devices]);
+
+  // Device preselected dari halaman Devices di-fetch satu per satu bila
+  // belum ada di knownDevices (jumlahnya sekecil pilihan user).
+  const missingPreselected = preselectedIds.filter((id) => !knownDevices.has(id));
+  const preselectedQueries = useQueries({
+    queries: missingPreselected.map((id) => ({
+      queryKey: ['device', id],
+      queryFn: async () => {
+        const { data } = await api.get<ApiResponse<DeviceInfo>>(`/devices/${id}`);
+        return mapDevice(data.data!);
+      },
+      staleTime: 60_000,
+      retry: 1,
+    })),
+  });
+
+  const visibleDevices = devices?.data;
 
   const toggleDevice = (id: string) => {
     setSelectedDeviceIds((prev) => {
@@ -112,8 +156,14 @@ export function NewDeploymentPage() {
   };
 
   const selectedRelease = releases?.data?.find((r) => r.id === selectedReleaseId);
-  const selectedTargets: DeployTargetInfo[] = (devices?.data || [])
-    .filter((d) => selectedDeviceIds.has(d.id))
+  const deviceInfoById = new Map<string, Device>();
+  knownDevices.forEach((d) => deviceInfoById.set(d.id, d));
+  preselectedQueries.forEach((q) => {
+    if (q.data) deviceInfoById.set(q.data.id, q.data);
+  });
+  const selectedTargets: DeployTargetInfo[] = Array.from(selectedDeviceIds)
+    .map((id) => deviceInfoById.get(id))
+    .filter((d): d is Device => Boolean(d))
     .map((d) => ({
       deviceId: d.deviceId,
       hostname: d.hostname,
@@ -261,6 +311,12 @@ export function NewDeploymentPage() {
                   )}
                 </TableBody>
               </Table>
+            )}
+            {devices && devices.total > devices.data.length && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Menampilkan {devices.data.length} dari {devices.total} device — gunakan
+                pencarian untuk menemukan device lain.
+              </p>
             )}
             <div className="flex justify-between mt-4">
               <Button variant="outline" onClick={() => setStep(1)}>
