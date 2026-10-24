@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TerminusModule } from '@nestjs/terminus';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 import { AuthModule } from './auth/auth.module';
 import { AgentModule } from './agents/agent.module';
 import { DeviceModule } from './devices/device.module';
@@ -62,6 +64,10 @@ import { ReorderWaitingDeploymentStatus1751000000000 } from './database/migratio
         logging: config.get('NODE_ENV') === 'development',
       }),
     }),
+    // Rate limit global per IP. Batas 300/menit mengakomodasi heartbeat +
+    // polling update agent yang berbagi satu IP NAT; endpoint login punya
+    // batas jauh lebih ketat (lihat AuthController).
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
     TerminusModule,
     AuthModule,
     AgentModule,
@@ -73,6 +79,12 @@ import { ReorderWaitingDeploymentStatus1751000000000 } from './database/migratio
     CiModule,
     HealthModule,
     DashboardModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
 })
 export class AppModule {}

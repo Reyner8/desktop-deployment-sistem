@@ -10,6 +10,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { AuditService } from '../audit/audit.service';
 import { LoginDto } from './dto/login.dto';
@@ -28,6 +29,9 @@ export class AuthController {
   ) {}
 
   @Post('login')
+  // Rate limit ketat khusus login untuk menahan brute force password;
+  // angka 10/menit per IP masih longgar untuk penggunaan admin normal.
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   async login(@Body() dto: LoginDto) {
     const user = await this.authService.validateUser(dto.username, dto.password);
